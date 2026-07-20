@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% load url_filters %}
+
+{% block title %}Error Log - {{ stage_label }} #{{ build_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>
+        <i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i>
+        {{ run.gate.name }} - {{ stage_label }} 에러 로그
+        {% if build_number %}#{{ build_number }}{% endif %}
+    </h1>
+    <a href="{% url 'qualitygates:run_detail' run.pk %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Run
+    </a>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+    <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">
+        <div><strong>Job:</strong> <span class="mono">{{ job_path }}</span></div>
+        {% if build_number %}
+        <div><strong>Build:</strong> #{{ build_number }}</div>
+        {% endif %}
+        {% if duration_ms %}
+        <div><strong>Duration:</strong> {{ duration_ms|floatformat:0 }}ms</div>
+        {% endif %}
+        <div style="margin-left:auto;display:flex;gap:6px">
+            <a href="{% url console_url_name run.pk %}" class="btn btn-sm btn-secondary">
+                <i class="fas fa-terminal"></i> Full Console
+            </a>
+            {% if build_url %}
+            <a href="{{ build_url }}" target="_blank" class="btn btn-sm btn-secondary">
+                Jenkins <i class="fas fa-external-link-alt"></i>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if matched_urls %}
+<div class="card" style="margin-bottom:16px">
+    <h2 class="card-title">
+        <i class="fas fa-user-tie"></i> 이슈 F/U 담당자
+    </h2>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>URL</th>
+                    <th>Method</th>
+                    <th>호출 횟수</th>
+                    <th>Status</th>
+                    <th>FE 담당자</th>
+                    <th>BE 담당자</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in matched_urls %}
+                <tr>
+                    <td><span class="mono" style="word-break:break-all">{{ m.url }}</span></td>
+                    <td>{{ m.method|default:"-" }}</td>
+                    <td>{{ m.count }}</td>
+                    <td>{% if m.status_code %}<span class="status-badge {% if m.status_code >= 500 %}status-fail{% elif m.status_code >= 400 %}status-na{% else %}status-pass{% endif %}">{{ m.status_code }}</span>{% else %}-{% endif %}</td>
+                    {% if m.owner %}
+                    <td{% if m.status_code and m.status_code >= 400 and m.status_code < 500 %} style="background:rgba(255,193,7,0.18);font-weight:600" title="이 Status({{ m.status_code }})는 FE 담당자가 F/U"{% endif %}>
+                        {{ m.owner.fe_owner|default:"-" }}
+                    </td>
+                    <td{% if m.status_code and m.status_code >= 500 %} style="background:rgba(220,53,69,0.18);font-weight:600" title="이 Status({{ m.status_code }})는 BE 담당자가 F/U"{% endif %}>
+                        {{ m.owner.be_owner|default:"-" }}
+                    </td>
+                    <td>
+                        {% if user.can_write %}
+                        <form method="post" action="{% url 'accounts:api_owner_notify_error' m.owner.pk %}" style="display:inline"
+                              onsubmit="return confirm('이 URL 의 담당자에게 Slack 으로 에러 노티를 보냅니다. 계속하시겠습니까?');">
+                            {% csrf_token %}
+                            <input type="hidden" name="url" value="{{ m.url }}">
+                            <input type="hidden" name="method" value="{{ m.method|default:'' }}">
+                            <input type="hidden" name="status_code" value="{{ m.status_code|default:'' }}">
+                            <input type="hidden" name="source_type" value="{{ notify_source_type }}">
+                            <input type="hidden" name="source_id" value="{{ notify_source_id }}">
+                            {% if notify_stage %}<input type="hidden" name="stage" value="{{ notify_stage }}">{% endif %}
+                            <button type="submit" class="btn btn-sm btn-warning" title="이 담당자에게 Slack 으로 즉시 노티">
+                                <i class="fas fa-bell"></i> 에러 노티
+                            </button>
+                        </form>
+                        {% endif %}
+                    </td>
+                    {% else %}
+                    <td colspan="2">
+                        <span class="text-muted">담당자 미등록 — 대체 담당자로 지정</span>
+                    </td>
+                    <td>
+                        <div style="display:flex;gap:4px;align-items:center">
+                        {% if user.can_write %}
+                        <form method="post" action="{% url 'accounts:notify_fallback_owners' %}" style="display:inline"
+                              onsubmit="return confirm('이 URL 의 담당자가 매칭되지 않아 대체 담당자에게 Slack 노티를 보냅니다. 계속하시겠습니까?');">
+                            {% csrf_token %}
+                            <input type="hidden" name="url" value="{{ m.url }}">
+                            <input type="hidden" name="method" value="{{ m.method|default:'' }}">
+                            <input type="hidden" name="status_code" value="{{ m.status_code|default:'' }}">
+                            <input type="hidden" name="source_type" value="{{ notify_source_type }}">
+                            <input type="hidden" name="source_id" value="{{ notify_source_id }}">
+                            {% if notify_stage %}<input type="hidden" name="stage" value="{{ notify_stage }}">{% endif %}
+                            <button type="submit" class="btn btn-sm btn-warning" title="대체 담당자에게 Slack 노티">
+                                <i class="fas fa-bell"></i> 에러 노티
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% if user.is_admin %}
+                        <a href="{% url 'accounts:api_owner_create' %}?method={{ m.method|default:'GET'|urlencode }}&endpoint={{ m.url|url_path|urlencode }}&host={{ m.url|url_host|urlencode }}" class="btn btn-sm btn-secondary" title="이 URL 의 담당자를 등록">+ 등록</a>
+                        {% endif %}
+                        </div>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="text-muted" style="font-size:0.8rem;margin-top:8px">
+        URL 은 콘솔 로그에서 자동 추출. 담당자 정보는 <code>/accounts/api-owners/</code> 의 마스터 데이터와 path-only 매칭됨.
+        매칭 실패 URL 의 노티는 <strong>대체 담당자</strong> (담당자 관리 화면 하단에서 설정) 에게 발송됩니다.
+    </p>
+</div>
+{% endif %}
+
+<div class="card">
+    <h2 class="card-title">
+        <i class="fas fa-bug"></i> 추출된 에러
+    </h2>
+    {% if error_log %}
+    <p class="text-muted" style="font-size:0.85rem;margin-bottom:8px">
+        Jenkins 콘솔 로그에서 자동화 스크립트가 마킹한 실패 구간(<code>@@@</code> 블록) 또는
+        pytest FAILURES / [FAIL] 라인 주변만 추출했습니다. 전체 로그가 필요하면 우측 상단의
+        <strong>Full Console</strong> 을 누르세요.
+    </p>
+    <pre style="background:#1e1e1e;color:#f08080;padding:16px;border-radius:8px;overflow-x:auto;max-height:80vh;overflow-y:auto;font-size:13px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word">{{ error_log }}</pre>
+    {% else %}
+    <p class="text-muted" style="padding:20px;text-align:center">
+        <i class="fas fa-info-circle"></i> 콘솔 로그에서 추출 가능한 에러 마커를 찾지 못했습니다.
+        Full Console 에서 전체 로그를 확인해주세요.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

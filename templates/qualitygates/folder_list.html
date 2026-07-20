@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Quality Gate Folders - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Quality Gate 인스턴스</h1>
+    {% if user.is_admin %}
+    <a href="{% url 'qualitygates:folder_register' %}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> 인스턴스 등록
+    </a>
+    {% endif %}
+</div>
+
+<div class="folder-grid">
+    {% for folder in folders %}
+    <a class="folder-card" href="{% url 'qualitygates:folder_detail' folder.pk %}">
+        <div class="folder-card-head">
+            <i class="fas fa-folder folder-icon"></i>
+            <strong>{{ folder.name }}</strong>
+        </div>
+        {% if folder.description %}
+        <div class="folder-desc">{{ folder.description }}</div>
+        {% endif %}
+        <div class="folder-meta">
+            <span><i class="fas fa-shield-alt"></i> Gate {{ folder.gate_count }}</span>
+            {% if folder.dev_jenkins_user %}<span><i class="fas fa-key"></i> Dev 설정 완료</span>{% endif %}
+            {% if folder.prod_jenkins_user %}<span><i class="fas fa-key"></i> Prod 설정 완료</span>{% endif %}
+        </div>
+    </a>
+    {% empty %}
+    <div class="card" style="grid-column:1/-1;text-align:center;padding:48px">
+        <p class="text-muted">등록된 인스턴스가 없습니다.</p>
+        {% if user.is_admin %}
+        <a href="{% url 'qualitygates:folder_register' %}" class="btn btn-primary" style="margin-top:12px">
+            <i class="fas fa-plus"></i> 첫 인스턴스 등록
+        </a>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<style>
+.folder-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+.folder-card {
+    display: block;
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    padding: 20px;
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow 0.15s, transform 0.15s;
+}
+.folder-card:hover {
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
+    text-decoration: none;
+}
+.folder-card-head {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 1.05rem; margin-bottom: 10px;
+}
+.folder-icon { color: #f59e0b; font-size: 1.3rem; }
+.folder-desc {
+    color: var(--gray-600); font-size: 0.85rem;
+    margin-bottom: 12px; line-height: 1.4;
+}
+.folder-meta {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    font-size: 0.8rem; color: var(--gray-500);
+}
+.folder-meta i { margin-right: 4px; }
+</style>
+{% endblock %}

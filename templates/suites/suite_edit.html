@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Suite - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Suite 수정</h1>
+    <a href="{% url 'suites:suite_detail' suite.pk %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back
+    </a>
+</div>
+
+<div class="card">
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="name">Suite 이름</label>
+            <input type="text" name="name" id="name" class="form-input" value="{{ suite.name }}" required>
+        </div>
+        <div class="form-group">
+            <label for="jenkins_folder_path">Jenkins 폴더 경로</label>
+            <input type="text" name="jenkins_folder_path" id="jenkins_folder_path" class="form-input"
+                   value="{{ suite.jenkins_folder_path }}" required>
+            <small class="text-muted">Jenkins URL을 그대로 붙여넣어도 됩니다.</small>
+        </div>
+
+        {% if suite.is_external %}
+        <fieldset style="border:1px solid var(--border,#ddd);padding:12px;border-radius:6px;margin-bottom:16px">
+            <legend style="padding:0 6px;font-size:0.9rem;color:var(--text-muted,#666)">외부 Jenkins 접속 정보</legend>
+            <div class="form-group">
+                <label for="jenkins_base_url">Jenkins URL</label>
+                <input type="text" name="jenkins_base_url" id="jenkins_base_url" class="form-input"
+                       value="{{ suite.jenkins_base_url }}">
+            </div>
+            <div class="form-group">
+                <label for="jenkins_user">Jenkins User ID</label>
+                <input type="text" name="jenkins_user" id="jenkins_user" class="form-input"
+                       value="{{ suite.jenkins_user }}">
+            </div>
+            <div class="form-group">
+                <label for="jenkins_api_token">API Token</label>
+                <input type="password" name="jenkins_api_token" id="jenkins_api_token" class="form-input"
+                       placeholder="변경 시에만 입력 (비우면 기존 값 유지)"
+                       autocomplete="new-password">
+            </div>
+        </fieldset>
+        {% endif %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">저장</button>
+            <a href="{% url 'suites:suite_detail' suite.pk %}" class="btn btn-secondary">취소</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Gate Results - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Gate 실행 결과</h1>
+</div>
+
+<!-- Filters -->
+<div class="card" x-data="{ showFilters: false }">
+    <div class="card-header" @click="showFilters = !showFilters" style="cursor: pointer;">
+        <i class="fas fa-filter"></i> Filters
+        <i :class="showFilters ? 'fas fa-chevron-up' : 'fas fa-chevron-down'" class="float-right"></i>
+    </div>
+    <div x-show="showFilters" class="card-body">
+        <form method="get" class="filter-form">
+            <div class="form-row">
+                <select name="result" class="form-input">
+                    <option value="">All Results</option>
+                    <option value="PASS" {% if request.GET.result == "PASS" %}selected{% endif %}>PASS</option>
+                    <option value="FAIL" {% if request.GET.result == "FAIL" %}selected{% endif %}>FAIL</option>
+                </select>
+                <button type="submit" class="btn btn-primary">Apply</button>
+                <a href="{% url 'gates:run_list' %}" class="btn btn-secondary">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results Table -->
+<div class="card">
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Service</th>
+                    <th>Env</th>
+                    <th>Version</th>
+                    <th>Branch</th>
+                    <th>Result</th>
+                    <th>API Test</th>
+                    <th>E2E Rate</th>
+                    <th>Duration</th>
+                    <th>Trigger</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in runs %}
+                <tr>
+                    <td>{{ run.service.name }}</td>
+                    <td>
+                        <span class="env-badge env-{{ run.environment.name|lower }}">
+                            {{ run.environment.name }}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="{% url 'gates:run_detail' run.pk %}">
+                            {{ run.version|default:"-" }}
+                        </a>
+                    </td>
+                    <td>{{ run.branch|default:"-"|truncatechars:20 }}</td>
+                    <td>
+                        {% if run.result == "PASS" %}
+                        <span class="status-badge status-pass">PASS</span>
+                        {% elif run.result == "FAIL" %}
+                        <span class="status-badge status-fail">FAIL</span>
+                        {% else %}
+                        <span class="status-badge status-running">{{ run.result }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ run.api_test_result|default:"-" }}</td>
+                    <td>{{ run.e2e_test_result|default:"-" }}{% if run.e2e_test_result %}%{% endif %}</td>
+                    <td>{{ run.duration_seconds|default:"-" }}s</td>
+                    <td>{{ run.triggered_by }}</td>
+                    <td>{{ run.created_at|date:"m/d H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10" class="text-center text-muted">실행 결과가 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

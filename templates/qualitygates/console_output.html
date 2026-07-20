@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Console - {{ stage_label }} #{{ build_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>
+        <i class="fas fa-terminal"></i>
+        {{ run.gate.name }} - {{ stage_label }}
+        {% if build_number %}#{{ build_number }}{% endif %}
+    </h1>
+    <a href="{% url 'qualitygates:run_detail' run.pk %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Run
+    </a>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+    <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">
+        <div><strong>Job:</strong> <span class="mono">{{ job_path }}</span></div>
+        {% if build_number %}
+        <div><strong>Build:</strong> #{{ build_number }}</div>
+        {% endif %}
+        {% if duration_ms %}
+        <div><strong>Duration:</strong> {{ duration_ms|floatformat:0 }}ms</div>
+        {% endif %}
+        {% if build_url %}
+        <div>
+            <a href="{{ build_url }}" target="_blank" class="btn btn-sm btn-secondary">
+                Jenkins <i class="fas fa-external-link-alt"></i>
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <h2 class="card-title">Console Output</h2>
+    {% if console_output %}
+    <pre style="background:#1e1e1e;color:#d4d4d4;padding:16px;border-radius:8px;overflow-x:auto;max-height:80vh;overflow-y:auto;font-size:13px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word">{{ console_output }}</pre>
+    {% else %}
+    <p class="text-muted" style="padding:20px;text-align:center">
+        <i class="fas fa-info-circle"></i> 콘솔 로그가 아직 저장되지 않았습니다. 빌드 완료 후 자동으로 저장됩니다.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

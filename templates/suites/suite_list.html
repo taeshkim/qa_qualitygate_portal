@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Test Suites - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Test Suites</h1>
+    <div style="display:flex;gap:8px;align-items:center">
+        {% if user.is_admin %}
+        <a href="{% url 'suites:credentials' %}" class="btn btn-secondary"
+           title="Test Suite 가 사용하는 Jenkins 자격증명(내부/외부) 관리">
+            <i class="fas fa-key"></i> Jenkins 자격증명
+        </a>
+        <a href="{% url 'suites:suite_register' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Register Suite
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Suite Name</th>
+                    <th>Jenkins Path</th>
+                    <th>Jobs</th>
+                    <th>Last Run</th>
+                    <th>Pass Rate</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for suite in suites %}
+                <tr>
+                    <td>
+                        <a href="{% url 'suites:suite_detail' suite.pk %}">
+                            <strong>{{ suite.name }}</strong>
+                        </a>
+                        {% if suite.is_external %}
+                        <span class="status-badge status-warning" style="margin-left:6px;font-size:0.7rem" title="외부 Jenkins: {{ suite.jenkins_base_url }}">외부</span>
+                        {% endif %}
+                    </td>
+                    <td class="mono" style="font-size:0.8rem">{{ suite.jenkins_folder_path }}</td>
+                    <td>{{ suite.job_count }}</td>
+                    <td>
+                        {% with run=suite.latest_run %}
+                        {% if run %}
+                            <span class="status-badge status-{% if run.status == 'completed' %}pass{% else %}running{% endif %}">
+                                {{ run.status }}
+                            </span>
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                        {% endwith %}
+                    </td>
+                    <td>
+                        {% with stats=suite.overall_stats %}
+                        {% if stats.total > 0 %}
+                            <strong class="{% if suite.overall_pass_rate == 100 %}text-success{% elif suite.overall_pass_rate >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ suite.overall_pass_rate }}%
+                            </strong>
+                            <span class="text-muted">({{ stats.passed }}/{{ stats.total }})</span>
+                        {% else %}
+                            -
+                        {% endif %}
+                        {% endwith %}
+                    </td>
+                    <td>
+                        <div style="display:flex;gap:4px;align-items:center">
+                        <a href="{% url 'suites:suite_detail' suite.pk %}" class="btn btn-sm btn-secondary">Detail</a>
+                        {% if user.is_admin %}
+                        <a href="{% url 'suites:suite_delete' suite.pk %}" class="btn btn-sm btn-danger">
+                            <i class="fas fa-trash"></i>
+                        </a>
+                        {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted">등록된 스위트가 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

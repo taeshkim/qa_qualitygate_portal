@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Quality Gate Portal{% endblock %}
+
+{% block extra_head %}
+<style>
+/* 라이트 테마 기준 — metric-card 와 동일 톤(white 배경 / gray-800 본문). */
+.dora-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:8px}
+.dora-card{padding:14px 16px;border:1px solid var(--gray-200);border-radius:8px;background:white;box-shadow:0 1px 3px rgba(0,0,0,0.05)}
+.dora-label{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--gray-500);font-weight:700}
+.dora-name{font-size:0.88rem;color:var(--gray-700);margin-top:2px;font-weight:500}
+.dora-value{font-size:1.9rem;font-weight:700;margin-top:6px;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--gray-800)}
+.dora-grade{display:inline-block;font-size:0.72rem;padding:2px 9px;border-radius:10px;margin-top:6px;font-weight:700;letter-spacing:0.04em}
+.dora-grade.elite  {background:#dcfce7;color:#15803d;border:1px solid #86efac}
+.dora-grade.high   {background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd}
+.dora-grade.medium {background:#fef3c7;color:#a16207;border:1px solid #fcd34d}
+.dora-grade.low    {background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5}
+.dora-grade.na     {background:var(--gray-100);color:var(--gray-500);border:1px solid var(--gray-300)}
+.dora-sub{font-size:0.74rem;color:var(--gray-500);margin-top:6px}
+/* ? 도움말 버튼 (헤더 옆) */
+.dora-help-btn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--gray-100);color:var(--gray-600);font-size:0.78rem;font-weight:700;border:1px solid var(--gray-300);cursor:pointer;margin-left:8px;vertical-align:middle;line-height:1;padding:0}
+.dora-help-btn:hover{background:var(--gray-200);color:var(--gray-800)}
+/* DORA 도움말 모달 */
+#dora-help-modal{max-width:720px;width:90%;padding:0;border:none;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,0.25)}
+#dora-help-modal::backdrop{background:rgba(15,23,42,0.55)}
+.dora-modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--gray-200);background:var(--gray-50);border-radius:10px 10px 0 0}
+.dora-modal-head h3{margin:0;font-size:1.05rem;color:var(--gray-800)}
+.dora-modal-close{background:transparent;border:none;font-size:1.4rem;line-height:1;color:var(--gray-500);cursor:pointer;padding:4px 8px;border-radius:6px}
+.dora-modal-close:hover{background:var(--gray-200);color:var(--gray-800)}
+.dora-modal-body{padding:16px 18px;max-height:70vh;overflow-y:auto;font-size:0.85rem;line-height:1.55;color:var(--gray-700)}
+.dora-modal-body h4{margin:0 0 4px 0;font-size:0.92rem;color:var(--gray-800)}
+.dora-modal-body table{width:100%;margin-top:6px;font-size:0.82rem;border-collapse:collapse}
+.dora-modal-body th,.dora-modal-body td{padding:4px 8px;text-align:left;border-bottom:1px solid var(--gray-200)}
+.dora-modal-body th{color:var(--gray-600);font-weight:600;background:var(--gray-50)}
+.dora-modal-body tbody tr:last-child td{border-bottom:none}
+.dora-help-section + .dora-help-section{margin-top:14px}
+@media (max-width:900px){.dora-cards{grid-template-columns:repeat(2,1fr)}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>QG Dashboard</h1>
+</div>
+
+<!-- Metric Cards (7일 요약) -->
+<div class="metric-cards">
+    <div class="metric-card">
+        <div class="metric-label">QG Pass Rate (7d)</div>
+        <div class="metric-value {% if metrics.pass_rate >= 90 %}text-success{% elif metrics.pass_rate >= 50 %}text-warning{% else %}text-danger{% endif %}">
+            {{ metrics.pass_rate }}%
+        </div>
+        <div class="metric-sub">{{ metrics.passed_count }} passed / {{ metrics.total_runs }} total</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">QG Failures (7d)</div>
+        <div class="metric-value {% if metrics.failed_count == 0 %}text-success{% else %}text-danger{% endif %}">
+            {{ metrics.failed_count }}
+        </div>
+        <div class="metric-sub">out of {{ metrics.total_runs }} runs</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Total Runs (7d)</div>
+        <div class="metric-value">{{ metrics.total_runs }}</div>
+        <div class="metric-sub">last 7 days</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Running Gates</div>
+        <div class="metric-value {% if metrics.running_count > 0 %}text-warning{% endif %}">{{ metrics.running_count }}</div>
+        <div class="metric-sub">currently running</div>
+    </div>
+</div>
+
+<!-- DORA Metrics (30일 윈도우) -->
+<div class="card" style="margin-bottom:16px">
+    <h2 class="card-title">
+        DORA Metrics
+        <span class="text-muted" style="font-size:0.78rem;font-weight:400;margin-left:8px">최근 30일</span>
+        <button type="button" class="dora-help-btn" title="DORA 지표 설명 / 산식 / 등급 기준"
+                onclick="document.getElementById('dora-help-modal').showModal()">?</button>
+    </h2>
+
+    <dialog id="dora-help-modal">
+        <div class="dora-modal-head">
+            <h3>DORA Metrics — 정의 / 산식 / 등급 기준</h3>
+            <button type="button" class="dora-modal-close" aria-label="닫기"
+                    onclick="document.getElementById('dora-help-modal').close()">×</button>
+        </div>
+        <div class="dora-modal-body">
+            <p style="margin:0 0 10px 0">
+                <strong>DORA Metrics</strong> 는 Google DevOps Research and Assessment 팀이 정의한 DevOps 성숙도 표준 4지표.
+                아래 값은 모두 <strong>최근 30일</strong> 윈도우에서 산정. 등급 임계는 Accelerate 2023 보고서 기준.
+            </p>
+
+            <div class="dora-help-section">
+                <h4>DF — Deployment Frequency (배포 빈도)</h4>
+                <div>정의: 단위 기간당 성공적으로 종료된 Quality Gate Run 수.</div>
+                <div>산식: <code>count(status IN {COMPLETED, QG_PASSED}) / 30 days</code></div>
+                <table>
+                    <thead><tr><th>등급</th><th>임계 (per day)</th></tr></thead>
+                    <tbody>
+                        <tr><td><span class="dora-grade elite">Elite</span></td><td>≥ 1/day</td></tr>
+                        <tr><td><span class="dora-grade high">High</span></td><td>≥ 1/week (≈ 0.143/day)</td></tr>
+                        <tr><td><span class="dora-grade medium">Medium</span></td><td>≥ 1/month (≈ 0.033/day)</td></tr>
+                        <tr><td><span class="dora-grade low">Low</span></td><td>&lt; 1/month</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="dora-help-section">
+                <h4>LT — Lead Time for Changes (변경 리드타임)</h4>
+                <div>정의: 변경이 시작되어 배포 완료까지 걸리는 시간의 중앙값.</div>
+                <div>산식: 성공 Run 마다 <code>(prod_completed_at or deploy_completed_at) − created_at</code> 의 <code>median</code></div>
+                <table>
+                    <thead><tr><th>등급</th><th>임계 (중앙값)</th></tr></thead>
+                    <tbody>
+                        <tr><td><span class="dora-grade elite">Elite</span></td><td>&lt; 1 day</td></tr>
+                        <tr><td><span class="dora-grade high">High</span></td><td>&lt; 1 week</td></tr>
+                        <tr><td><span class="dora-grade medium">Medium</span></td><td>&lt; 1 month</td></tr>
+                        <tr><td><span class="dora-grade low">Low</span></td><td>≥ 1 month</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="dora-help-section">
+                <h4>CFR — Change Failure Rate (변경 실패율)</h4>
+                <div>정의: 배포 시도 중 실패로 끝난 비율. <em>취소(Cancelled)</em> 는 분모/분자 양쪽에서 제외.</div>
+                <div>산식: <code>failures / (failures + successes) × 100</code>
+                    <br>failures = <code>FAILED, DEPLOY_FAILED, PROD_DEPLOY_FAILED, IMAGE_BUILD_FAILED</code>
+                    <br>successes = <code>COMPLETED, QG_PASSED</code></div>
+                <table>
+                    <thead><tr><th>등급</th><th>임계 (실패율)</th></tr></thead>
+                    <tbody>
+                        <tr><td><span class="dora-grade elite">Elite</span></td><td>≤ 15%</td></tr>
+                        <tr><td><span class="dora-grade high">High</span></td><td>≤ 30%</td></tr>
+                        <tr><td><span class="dora-grade medium">Medium</span></td><td>≤ 45%</td></tr>
+                        <tr><td><span class="dora-grade low">Low</span></td><td>&gt; 45%</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="dora-help-section">
+                <h4>MTTR — Mean Time to Recovery (장애 복구 시간)</h4>
+                <div>정의: 실패한 Run 이후 같은 게이트에서 다음 성공까지 걸린 시간의 중앙값.</div>
+                <div>산식: 게이트별로 시간순 정렬 → <code>FAIL.created_at</code> 마킹 → 다음 <code>SUCCESS.created_at</code> 까지의 차이 수집 → <code>median</code></div>
+                <table>
+                    <thead><tr><th>등급</th><th>임계 (중앙값)</th></tr></thead>
+                    <tbody>
+                        <tr><td><span class="dora-grade elite">Elite</span></td><td>&lt; 1 hour</td></tr>
+                        <tr><td><span class="dora-grade high">High</span></td><td>&lt; 1 day</td></tr>
+                        <tr><td><span class="dora-grade medium">Medium</span></td><td>&lt; 1 week</td></tr>
+                        <tr><td><span class="dora-grade low">Low</span></td><td>≥ 1 week</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p class="text-muted" style="font-size:0.75rem;margin:14px 0 0 0">
+                등급 분기 함수: <code>apps/dashboard/views.py:_dora_grade_{df,lt,cfr,mttr}</code>.
+                임계 수치만 if 조건에서 조정 가능 (사내 기준에 맞춰).
+            </p>
+        </div>
+    </dialog>
+    <p class="text-muted" style="font-size:0.82rem;margin-top:4px;margin-bottom:12px">
+        DevOps 성숙도 표준 4지표.
+        등급: <span class="dora-grade elite">Elite</span>
+        <span class="dora-grade high">High</span>
+        <span class="dora-grade medium">Medium</span>
+        <span class="dora-grade low">Low</span>
+        (Accelerate 2023 기준)
+    </p>
+    <div class="dora-cards">
+        <!-- Deployment Frequency -->
+        <div class="dora-card">
+            <div class="dora-label">DF</div>
+            <div class="dora-name">Deployment Frequency</div>
+            <div class="dora-value">{{ dora.df.value }}</div>
+            <span class="dora-grade {{ dora.df.level }}">{{ dora.df.grade }}</span>
+            <div class="dora-sub">성공 종료 {{ dora.df.count }}건 / 30일</div>
+        </div>
+        <!-- Lead Time for Changes -->
+        <div class="dora-card">
+            <div class="dora-label">LT</div>
+            <div class="dora-name">Lead Time for Changes</div>
+            <div class="dora-value">{{ dora.lt.value }}</div>
+            <span class="dora-grade {{ dora.lt.level }}">{{ dora.lt.grade }}</span>
+            <div class="dora-sub">created → 완료 중앙값 (표본 {{ dora.lt.samples }})</div>
+        </div>
+        <!-- Change Failure Rate -->
+        <div class="dora-card">
+            <div class="dora-label">CFR</div>
+            <div class="dora-name">Change Failure Rate</div>
+            <div class="dora-value">{{ dora.cfr.value }}</div>
+            <span class="dora-grade {{ dora.cfr.level }}">{{ dora.cfr.grade }}</span>
+            <div class="dora-sub">실패 {{ dora.cfr.failures }} / 총 {{ dora.cfr.failures|add:dora.cfr.successes }}</div>
+        </div>
+        <!-- MTTR -->
+        <div class="dora-card">
+            <div class="dora-label">MTTR</div>
+            <div class="dora-name">Mean Time to Recovery</div>
+            <div class="dora-value">{{ dora.mttr.value }}</div>
+            <span class="dora-grade {{ dora.mttr.level }}">{{ dora.mttr.grade }}</span>
+            <div class="dora-sub">FAIL → PASS 중앙값 (표본 {{ dora.mttr.samples }})</div>
+        </div>
+    </div>
+</div>
+
+<!-- 최근 배포 내역 -->
+<div class="card">
+    <h2 class="card-title">최근 Quality Gate 실행 내역</h2>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Gate</th>
+                    <th>게이트 통계</th>
+                    <th>Status</th>
+                    <th>Deploy</th>
+                    <th>Tests</th>
+                    <th>Result</th>
+                    <th>By</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in recent_runs %}
+                <tr>
+                    <td>{{ run.created_at|date:"m/d H:i" }}</td>
+                    <td>
+                        <strong>{{ run.gate.name }}</strong>
+                        <span class="text-muted mono" style="font-size:0.85em">#{{ run.seq_no }}</span>
+                    </td>
+                    <td>
+                        {% if run.gate_lifetime_stats %}
+                            <span class="mono" style="font-size:0.88em">
+                                {{ run.gate_lifetime_stats.success }}/{{ run.gate_lifetime_stats.total }}
+                                <span class="text-muted">({{ run.gate_lifetime_stats.rate }}%)</span>
+                            </span>
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if run.is_terminal %}
+                        <span class="status-badge {% if run.is_success %}status-pass{% elif run.status == "cancelled" %}status-na{% else %}status-fail{% endif %}">
+                            {% if run.status == "cancelled" %}Cancelled{% else %}Completed{% endif %}
+                        </span>
+                        {% else %}
+                        <span class="status-badge status-running">{{ run.status_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if run.deploy_completed_at %}
+                        <span class="status-badge status-pass">Done</span>
+                        {% elif run.status == "deploy_failed" %}
+                        <span class="status-badge status-fail">Failed</span>
+                        {% elif run.status == "deploying" %}
+                        <span class="status-badge status-running">Running</span>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>
+                        {% for tr in run.test_runs.all %}
+                            {% if tr.status == "passed" %}
+                            <span class="status-badge status-pass" title="{{ tr.gate_suite.test_suite.name }}">P</span>
+                            {% elif tr.status == "failed" %}
+                            <span class="status-badge status-fail" title="{{ tr.gate_suite.test_suite.name }}">F</span>
+                            {% elif tr.status == "testing" or tr.status == "waiting" %}
+                            <span class="status-badge status-running" title="{{ tr.gate_suite.test_suite.name }}">R</span>
+                            {% else %}
+                            <span class="status-badge status-na" title="{{ tr.gate_suite.test_suite.name }}">-</span>
+                            {% endif %}
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% if run.result_label == "PASS" or run.result_label == "QG PASS" %}
+                        <strong class="text-success">{{ run.result_label }}</strong>
+                        {% elif run.result_label == "FAIL" %}
+                        <strong class="text-danger">FAIL</strong>
+                        {% elif run.result_label == "CANCELLED" %}
+                        <strong class="text-muted">Cancelled</strong>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>{{ run.triggered_by|default:"-" }}</td>
+                    <td>
+                        <a href="{% url 'qualitygates:run_detail' run.pk %}" class="btn btn-sm btn-secondary">Detail</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9" class="text-center text-muted">실행 내역이 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

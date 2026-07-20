@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}{% if mode == 'edit' %}인스턴스 수정{% else %}인스턴스 등록{% endif %} - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{% if mode == 'edit' %}인스턴스 수정{% else %}인스턴스 등록{% endif %}</h1>
+    <a href="{% if mode == 'edit' %}{% url 'qualitygates:folder_detail' folder.pk %}{% else %}{% url 'qualitygates:folder_list' %}{% endif %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back
+    </a>
+</div>
+
+{% if errors %}
+<div class="alert alert-error">
+    <ul style="margin:0;padding-left:20px">
+        {% for err in errors %}<li>{{ err }}</li>{% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<div class="card">
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="name">인스턴스명 <span class="text-danger">*</span></label>
+            <input type="text" name="name" id="name" class="form-input" required
+                   value="{% if folder %}{{ folder.name }}{% else %}{{ form_data.name }}{% endif %}"
+                   placeholder="예: Auth 서비스">
+        </div>
+        <div class="form-group">
+            <label for="description">설명</label>
+            <input type="text" name="description" id="description" class="form-input"
+                   value="{% if folder %}{{ folder.description }}{% else %}{{ form_data.description }}{% endif %}"
+                   placeholder="간단한 설명 (선택)">
+        </div>
+
+        <h3 style="margin:24px 0 12px;color:var(--gray-600)">Dev (검수대상) Jenkins</h3>
+        <div class="form-group">
+            <label for="dev_jenkins_url">Dev Jenkins URL</label>
+            <input type="url" name="dev_jenkins_url" id="dev_jenkins_url" class="form-input"
+                   placeholder="https://jenkins-dev.example.com"
+                   value="{% if folder %}{{ folder.dev_jenkins_url }}{% else %}{{ form_data.dev_jenkins_url }}{% endif %}">
+        </div>
+        <div class="form-group">
+            <label for="dev_jenkins_user">Dev 계정 정보</label>
+            <input type="text" name="dev_jenkins_user" id="dev_jenkins_user" class="form-input"
+                   placeholder="example@jobkorea.co.kr 또는 username"
+                   value="{% if folder %}{{ folder.dev_jenkins_user }}{% else %}{{ form_data.dev_jenkins_user }}{% endif %}">
+        </div>
+        <div class="form-group">
+            <label for="dev_jenkins_token">Dev API Key</label>
+            <input type="password" name="dev_jenkins_token" id="dev_jenkins_token" class="form-input"
+                   placeholder="{% if mode == 'edit' %}변경하지 않으려면 비워두세요{% endif %}">
+            {% if mode == 'edit' %}<small class="text-muted">비워두면 기존 토큰 유지</small>{% endif %}
+        </div>
+
+        <h3 style="margin:24px 0 12px;color:var(--gray-600)">Prod (검수통과) Jenkins <span class="text-muted" style="font-weight:normal;font-size:0.85rem">(선택)</span></h3>
+        <div class="form-group">
+            <label for="prod_jenkins_url">Prod Jenkins URL</label>
+            <input type="url" name="prod_jenkins_url" id="prod_jenkins_url" class="form-input"
+                   placeholder="https://jenkins-prod.example.com"
+                   value="{% if folder %}{{ folder.prod_jenkins_url }}{% else %}{{ form_data.prod_jenkins_url }}{% endif %}">
+        </div>
+        <div class="form-group">
+            <label for="prod_jenkins_user">Prod 계정 정보</label>
+            <input type="text" name="prod_jenkins_user" id="prod_jenkins_user" class="form-input"
+                   placeholder="example@jobkorea.co.kr 또는 username"
+                   value="{% if folder %}{{ folder.prod_jenkins_user }}{% else %}{{ form_data.prod_jenkins_user }}{% endif %}">
+        </div>
+        <div class="form-group">
+            <label for="prod_jenkins_token">Prod API Key</label>
+            <input type="password" name="prod_jenkins_token" id="prod_jenkins_token" class="form-input"
+                   placeholder="{% if mode == 'edit' %}변경하지 않으려면 비워두세요{% endif %}">
+            {% if mode == 'edit' %}<small class="text-muted">비워두면 기존 토큰 유지</small>{% endif %}
+        </div>
+
+        <h3 style="margin:24px 0 12px;color:var(--gray-600)">Argo CD <span class="text-muted" style="font-weight:normal;font-size:0.85rem">(선택)</span></h3>
+        <p class="text-muted" style="font-size:0.85rem;margin-bottom:8px">
+            환경별 Argo CD API Token (Bearer). Gate 에서 배포 Job 별로 어느 환경 토큰을 쓸지 선택합니다.
+            {% if mode == 'edit' %}비워두면 기존 토큰 유지.{% endif %}
+        </p>
+        <div class="form-group">
+            <label for="dev_argocd_token">Argo CD Dev Token</label>
+            <input type="password" name="dev_argocd_token" id="dev_argocd_token" class="form-input"
+                   placeholder="{% if mode == 'edit' %}변경하지 않으려면 비워두세요{% endif %}"
+                   autocomplete="new-password">
+        </div>
+        <div class="form-group">
+            <label for="stg_argocd_token">Argo CD Stg Token</label>
+            <input type="password" name="stg_argocd_token" id="stg_argocd_token" class="form-input"
+                   placeholder="{% if mode == 'edit' %}변경하지 않으려면 비워두세요{% endif %}"
+                   autocomplete="new-password">
+        </div>
+        <div class="form-group">
+            <label for="prd_argocd_token">Argo CD Prd Token</label>
+            <input type="password" name="prd_argocd_token" id="prd_argocd_token" class="form-input"
+                   placeholder="{% if mode == 'edit' %}변경하지 않으려면 비워두세요{% endif %}"
+                   autocomplete="new-password">
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i> {% if mode == 'edit' %}수정{% else %}등록{% endif %}
+            </button>
+            <a href="{% if mode == 'edit' %}{% url 'qualitygates:folder_detail' folder.pk %}{% else %}{% url 'qualitygates:folder_list' %}{% endif %}" class="btn btn-secondary">취소</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

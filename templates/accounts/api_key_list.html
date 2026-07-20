@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}API Keys - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
+    <h1><i class="fas fa-key"></i> API Keys</h1>
+    <a href="{% url 'accounts:api_key_create' %}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> 새 키 발급
+    </a>
+</div>
+
+<div class="card">
+    <h2 class="card-title">내 API 키</h2>
+    <p style="color:var(--text-muted);font-size:0.88rem;margin-top:-6px;margin-bottom:14px">
+        외부 시스템(Jenkins / GitHub Actions / 백오피스 등) 이 <code>/api/v2/</code> 를 호출할 때 사용합니다.
+        키 평문은 <b>발급 직후 1회만 표시</b>되며, 분실 시 회수 후 재발급해야 합니다.
+    </p>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>이름</th>
+                    <th>Prefix</th>
+                    <th>스코프</th>
+                    <th>만료</th>
+                    <th>마지막 사용</th>
+                    <th>상태</th>
+                    <th style="min-width:120px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for k in keys %}
+                <tr>
+                    <td><strong>{{ k.name }}</strong></td>
+                    <td><code>qgp_{{ k.key_prefix }}_…</code></td>
+                    <td>
+                        {% for s in k.scopes %}
+                            <span class="status-badge" style="background:var(--gray-200);color:var(--text);margin-right:4px">{{ s }}</span>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% if k.expires_at %}
+                            {{ k.expires_at|date:"Y-m-d" }}
+                        {% else %}
+                            <span class="text-muted">무제한</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if k.last_used_at %}
+                            {{ k.last_used_at|date:"Y-m-d H:i" }}
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if k.is_revoked %}
+                            <span class="status-badge status-fail">회수됨</span>
+                        {% elif k.is_expired %}
+                            <span class="status-badge status-fail">만료됨</span>
+                        {% else %}
+                            <span class="status-badge status-pass">활성</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not k.is_revoked %}
+                        <form method="post" action="{% url 'accounts:api_key_revoke' k.pk %}"
+                              onsubmit="return confirm('키 \'{{ k.name }}\' 을(를) 회수합니다. 이후 이 키로는 API 호출이 불가능합니다. 계속할까요?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-danger">
+                                <i class="fas fa-ban"></i> 회수
+                            </button>
+                        </form>
+                        {% else %}
+                            <span class="text-muted" style="font-size:0.8rem">{{ k.revoked_at|date:"Y-m-d H:i" }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted">
+                        등록된 API 키가 없습니다.
+                        <a href="{% url 'accounts:api_key_create' %}">새 키 발급</a> 으로 시작하세요.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

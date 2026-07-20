@@ -1,0 +1,161 @@
+<span id="run-meta"
+      data-run-status="{{ suite_run.status }}"
+      data-run-name="{{ suite_run.suite.name }}"
+      hidden></span>
+
+<!-- Summary Cards -->
+<div class="metric-cards" style="margin-bottom:20px">
+    <div class="metric-card">
+        <div class="metric-label">Status</div>
+        <div class="metric-value">
+            {% if suite_run.status == "completed" %}
+                {% if suite_run.pass_rate == 100 %}
+                <span class="text-success">PASS</span>
+                {% else %}
+                <span class="text-danger">FAIL</span>
+                {% endif %}
+            {% elif suite_run.status == "running" %}
+                <span class="text-warning">Running...</span>
+            {% else %}
+                {{ suite_run.status }}
+            {% endif %}
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Progress</div>
+        <div class="metric-value">{{ suite_run.completed_jobs }}/{{ suite_run.total_jobs }}</div>
+        <div class="metric-sub">{{ suite_run.progress_percent }}%</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Pass Rate</div>
+        <div class="metric-value {% if suite_run.pass_rate == 100 %}text-success{% elif suite_run.pass_rate >= 50 %}text-warning{% else %}text-danger{% endif %}">
+            {{ suite_run.pass_rate }}%
+        </div>
+        <div class="metric-sub">{{ suite_run.passed_jobs }} passed / {{ suite_run.failed_jobs }} failed</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Started</div>
+        <div class="metric-value" style="font-size:1rem">{{ suite_run.started_at|date:"H:i:s" }}</div>
+        <div class="metric-sub">
+            {% if suite_run.completed_at %}
+            Completed {{ suite_run.completed_at|date:"H:i:s" }}
+            {% else %}
+            In progress...
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Progress Bar -->
+<div class="card" style="margin-bottom:20px">
+    <div style="background:var(--gray-200);border-radius:8px;height:24px;overflow:hidden;display:flex">
+        {% if suite_run.passed_jobs > 0 %}
+        <div style="background:var(--success);width:{{ suite_run.passed_percent }}%;height:100%;min-width:2px"
+             title="{{ suite_run.passed_jobs }} passed"></div>
+        {% endif %}
+        {% if suite_run.failed_jobs > 0 %}
+        <div style="background:var(--danger);width:{{ suite_run.failed_percent }}%;height:100%;min-width:2px"
+             title="{{ suite_run.failed_jobs }} failed"></div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Job Results Table -->
+<div class="card">
+    <h2 class="card-title">Job Results</h2>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Job Name</th>
+                    <th>Status</th>
+                    <th>Stage</th>
+                    <th>Build #</th>
+                    <th>Duration</th>
+                    <th>Console</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for jr in job_runs %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td><strong>{{ jr.job.job_name }}</strong></td>
+                    <td>
+                        {% if jr.status == "success" %}
+                        <span class="status-badge status-pass">SUCCESS</span>
+                        {% elif jr.status == "failure" %}
+                        <span class="status-badge status-fail">FAILURE</span>
+                        {% elif jr.status == "running" %}
+                        <span class="status-badge status-running">Running</span>
+                        {% elif jr.status == "queued" %}
+                        <span class="status-badge status-running">Queued</span>
+                        {% elif jr.status == "aborted" %}
+                        <span class="status-badge status-na">Aborted</span>
+                        {% else %}
+                        <span class="status-badge status-na">Waiting</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if jr.stages_json %}
+                        <div class="stage-pipeline">
+                            {% for stage in jr.stages_json %}
+                            <span class="stage-dot stage-{{ stage.status|lower }}"
+                                  title="{{ forloop.counter }}. {{ stage.name }} ({{ stage.status }}){% if stage.duration_ms %} - {{ stage.duration_ms|floatformat:0 }}ms{% endif %}">
+                            </span>
+                            {% endfor %}
+                        </div>
+                        <div class="stage-current">
+                            <span class="stage-count">{{ jr.stages_current_number }}/{{ jr.stages_total }}</span>
+                            {% if jr.current_stage %}
+                                {% if jr.stages_running > 0 %}
+                                    <span class="stage-label-running">{{ jr.current_stage }}</span>
+                                {% else %}
+                                    {{ jr.current_stage }}
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                        {% elif jr.status == "queued" %}
+                        <span class="text-muted">Waiting...</span>
+                        {% elif jr.status == "pending" %}
+                        <span class="text-muted">-</span>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ jr.jenkins_build_number|default:"-" }}</td>
+                    <td>{{ jr.duration_seconds|default:"-" }}{% if jr.duration_seconds %}s{% endif %}</td>
+                    <td>
+                        <div style="display:inline-flex;gap:4px;align-items:center">
+                            {% if jr.jenkins_build_url %}
+                            <a href="{{ jr.jenkins_build_url }}" target="_blank" class="btn btn-sm btn-secondary" title="Jenkins">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                            {% endif %}
+                            {% if jr.console_output %}
+                            <a href="{% url 'suites:job_run_console' jr.pk %}" class="btn btn-sm btn-secondary" title="콘솔 로그 보기">
+                                <i class="fas fa-terminal"></i>
+                            </a>
+                            {% if jr.status == "failure" %}
+                            <a href="{% url 'suites:job_run_error_log' jr.pk %}" class="btn btn-sm btn-danger" title="콘솔에서 실패 원인만 추출">
+                                <i class="fas fa-bug"></i>
+                            </a>
+                            {% endif %}
+                            {% endif %}
+                            {% if not jr.jenkins_build_url and not jr.console_output %}-{% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if suite_run.status == "completed" %}
+<script>
+    // 완료 시 HTMX 폴링 중지
+    var el = document.getElementById('run-status');
+    if (el) { el.removeAttribute('hx-get'); el.removeAttribute('hx-trigger'); }
+</script>
+{% endif %}

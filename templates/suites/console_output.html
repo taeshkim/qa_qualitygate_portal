@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Console - {{ job_run.job.job_name }} #{{ job_run.jenkins_build_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>
+        <i class="fas fa-terminal"></i>
+        {{ job_run.job.job_name }}
+        {% if job_run.jenkins_build_number %}#{{ job_run.jenkins_build_number }}{% endif %}
+    </h1>
+    <a href="{% url 'suites:run_detail' job_run.suite_run.pk %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Run
+    </a>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+    <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <div>
+            <strong>Status:</strong>
+            {% if job_run.status == "success" %}
+            <span class="status-badge status-pass">SUCCESS</span>
+            {% elif job_run.status == "failure" %}
+            <span class="status-badge status-fail">FAILURE</span>
+            {% elif job_run.status == "aborted" %}
+            <span class="status-badge status-na">ABORTED</span>
+            {% else %}
+            <span class="status-badge status-running">{{ job_run.status|upper }}</span>
+            {% endif %}
+        </div>
+        <div>
+            <strong>Duration:</strong>
+            {{ job_run.duration_seconds|default:"-" }}{% if job_run.duration_seconds %}s{% endif %}
+        </div>
+        <div>
+            <strong>Suite:</strong>
+            <a href="{% url 'suites:suite_detail' job_run.suite_run.suite.pk %}">{{ job_run.suite_run.suite.name }}</a>
+        </div>
+        {% if job_run.jenkins_build_url %}
+        <div>
+            <a href="{{ job_run.jenkins_build_url }}" target="_blank" class="btn btn-sm btn-secondary">
+                Jenkins <i class="fas fa-external-link-alt"></i>
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if console_diagnostics.has_findings %}
+<div class="card" style="border-left:4px solid var(--warning)">
+    <h2 class="card-title">자동 원인 분석</h2>
+    {% if console_diagnostics.case_id %}
+    <div class="text-muted" style="font-size:0.85rem;margin-bottom:10px">
+        Case: <span class="mono">{{ console_diagnostics.case_id }}</span>
+    </div>
+    {% endif %}
+
+    {% if console_diagnostics.summary %}
+    <ul style="margin-left:18px;margin-bottom:14px">
+        {% for item in console_diagnostics.summary %}
+        <li>{{ item }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if console_diagnostics.suspect_uids %}
+    <div class="table-wrapper" style="margin-bottom:14px">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Suspect UID</th>
+                    <th>Failures</th>
+                    <th>Steps</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in console_diagnostics.suspect_uids %}
+                <tr>
+                    <td><span class="mono">{{ item.uid }}</span></td>
+                    <td>{{ item.count }}</td>
+                    <td>{{ item.steps }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if console_diagnostics.actions %}
+    <h3 style="font-size:0.95rem;margin:8px 0;color:var(--gray-700)">수정 가이드</h3>
+    <ol style="margin-left:18px;margin-bottom:14px">
+        {% for item in console_diagnostics.actions %}
+        <li>{{ item }}</li>
+        {% endfor %}
+    </ol>
+    {% endif %}
+
+    {% if console_diagnostics.stuck_url %}
+    <div style="font-size:0.9rem;margin-bottom:12px">
+        <strong>Stuck URL:</strong>
+        <span class="mono">{{ console_diagnostics.stuck_url }}</span>
+    </div>
+    {% endif %}
+
+    {% if console_diagnostics.final_failure %}
+    <details>
+        <summary style="cursor:pointer;color:var(--gray-600)">원문 실패 메시지</summary>
+        <pre style="background:var(--gray-50);padding:12px;border-radius:6px;margin-top:8px;white-space:pre-wrap;word-wrap:break-word;font-size:0.85rem">{{ console_diagnostics.final_failure }}</pre>
+    </details>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+    <h2 class="card-title">Console Output</h2>
+    {% if job_run.console_output %}
+    <pre style="background:#1e1e1e;color:#d4d4d4;padding:16px;border-radius:8px;overflow-x:auto;max-height:80vh;overflow-y:auto;font-size:13px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word">{{ job_run.console_output }}</pre>
+    {% else %}
+    <p class="text-muted" style="padding:20px;text-align:center">
+        <i class="fas fa-info-circle"></i> 콘솔 로그가 아직 저장되지 않았습니다.
+        {% if job_run.status in "pending,queued,running" %}
+        빌드 완료 후 자동으로 저장됩니다.
+        {% endif %}
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

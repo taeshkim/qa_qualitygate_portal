@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Environments - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>환경 관리</h1>
+</div>
+
+<div class="card">
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>환경명</th>
+                    <th>트리거 방식</th>
+                    <th>게이트 모드</th>
+                    <th>다음 단계 제어</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for env in environments %}
+                <tr>
+                    <td>
+                        <span class="env-badge env-{{ env.name|lower }}">{{ env.name }}</span>
+                    </td>
+                    <td>{{ env.get_trigger_type_display }}</td>
+                    <td>{{ env.get_gate_mode_display }}</td>
+                    <td>{{ env.next_env_control|default:"-" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted">등록된 환경이 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

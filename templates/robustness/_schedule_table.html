@@ -1,0 +1,193 @@
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <h2 class="card-title" style="display:flex;align-items:center;gap:8px;margin:0">
+        스케줄 목록
+        <span class="text-muted" style="font-size:0.8rem;font-weight:normal">(10초마다 자동 갱신)</span>
+    </h2>
+    {% if schedules and user.can_write %}
+    <div style="display:flex;gap:6px;align-items:center">
+        <form method="post" action="{% url 'robustness:test_toggle_parallel' test.pk %}" style="margin:0">
+            {% csrf_token %}
+            <button type="submit"
+                    class="btn btn-sm {% if test.parallel_jobs %}btn-primary{% else %}btn-secondary{% endif %}"
+                    title="{% if test.parallel_jobs %}모든 스케줄이 Suite 의 잡들을 동시에 트리거합니다. 클릭하면 순차 실행으로 전환.{% else %}모든 스케줄이 잡을 하나씩 순차 실행합니다. 클릭하면 병렬 실행으로 전환.{% endif %}">
+                {% if test.parallel_jobs %}
+                <i class="fas fa-bolt"></i> 잡 병렬 실행 ON
+                {% else %}
+                <i class="fas fa-stream"></i> 잡 병렬 실행 OFF
+                {% endif %}
+            </button>
+        </form>
+        <form method="post" action="{% url 'robustness:schedule_start_all' test.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-primary">
+                <i class="fas fa-play"></i> 일괄 시작
+            </button>
+        </form>
+        <form method="post" action="{% url 'robustness:schedule_stop_all' test.pk %}"
+              onsubmit="return confirm('모든 스케줄을 중지하고 진행 중인 실행도 중단합니다. 계속할까요?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-danger">
+                <i class="fas fa-stop"></i> 일괄 중지
+            </button>
+        </form>
+        <form method="post" action="{% url 'robustness:schedule_reset_all' test.pk %}"
+              onsubmit="return confirm('모든 스케줄의 통계(성공/실패/실행수/세션 시작/마지막 실행)를 초기화합니다. 계속할까요?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-secondary" title="모든 스케줄의 통계를 초기화">
+                <i class="fas fa-undo"></i> 일괄 초기화
+            </button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+<div class="table-wrapper">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Test Suite</th>
+                <th>상태</th>
+                <th>간격</th>
+                <th>실행 수</th>
+                <th>성공 / 실패</th>
+                <th>성공률</th>
+                <th>마지막 실행</th>
+                <th>다음 실행</th>
+                <th>세션 시작</th>
+                <th style="min-width:260px">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for schedule in schedules %}
+            <tr>
+                <td>
+                    <a href="{% url 'suites:suite_detail' schedule.test_suite.pk %}">
+                        <strong>{{ schedule.test_suite.name }}</strong>
+                    </a>
+                </td>
+                <td>
+                    {% if schedule.is_running %}
+                    <span class="status-badge status-running">Running</span>
+                    {% else %}
+                    <span class="status-badge status-na">Stopped</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if user.is_admin %}
+                    <div style="display:flex;gap:4px;align-items:center">
+                        <input type="number" value="{{ schedule.interval_minutes }}" min="1"
+                               class="form-input interval-input" style="width:72px;padding:4px 6px"
+                               hx-post="{% url 'robustness:schedule_update_interval' schedule.pk %}"
+                               hx-trigger="change changed delay:400ms, blur changed"
+                               hx-vals='js:{interval_minutes: event.target.value}'
+                               hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                               hx-swap="none"
+                               hx-on::before-request="this.dataset.prev = this.value; this.classList.remove('is-saved','is-error')"
+                               hx-on::after-request="this.classList.add(event.detail.successful ? 'is-saved' : 'is-error'); if(!event.detail.successful){ this.value = this.dataset.prev || this.value; }">
+                        <span class="text-muted" style="font-size:0.8rem">분</span>
+                    </div>
+                    {% else %}
+                    {{ schedule.interval_minutes }}분
+                    {% endif %}
+                </td>
+                <td>
+                    <strong>{{ schedule.total_executions }}</strong>
+                    <span class="text-muted" style="font-size:0.75rem">잡</span>
+                    {% if schedule.in_flight_count %}
+                    <span class="text-muted" style="font-size:0.8rem">(+{{ schedule.in_flight_count }} 진행중)</span>
+                    {% endif %}
+                    <div class="text-muted" style="font-size:0.7rem">트리거 {{ schedule.trigger_count }}회</div>
+                </td>
+                <td>
+                    <span class="text-success">{{ schedule.success_count }}</span>
+                    /
+                    <span class="text-danger">{{ schedule.failure_count }}</span>
+                </td>
+                <td>
+                    {% if schedule.total_executions %}
+                    <strong class="{% if schedule.success_rate == 100 %}text-success{% elif schedule.success_rate >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                        {{ schedule.success_rate }}%
+                    </strong>
+                    {% else %}
+                    <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if schedule.last_triggered_at %}
+                    {{ schedule.last_triggered_at|date:"m/d H:i:s" }}
+                    {% else %}
+                    <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if schedule.is_running %}
+                        {% if schedule.seconds_until_next is not None %}
+                        <span class="text-muted">in {{ schedule.seconds_until_next }}s</span>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    {% else %}
+                    <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if schedule.started_at %}
+                    {{ schedule.started_at|date:"m/d H:i" }}
+                    {% else %}
+                    <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+                    {% if user.can_write %}
+                    {% if schedule.is_running %}
+                    <form method="post" action="{% url 'robustness:schedule_stop' schedule.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-danger">
+                            <i class="fas fa-stop"></i> Stop
+                        </button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="{% url 'robustness:schedule_start' schedule.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            <i class="fas fa-play"></i> Start
+                        </button>
+                    </form>
+                    {% endif %}
+                    <form method="post" action="{% url 'robustness:schedule_trigger' schedule.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-secondary" title="지금 한 번 실행">
+                            <i class="fas fa-bolt"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                    <a href="{% url 'robustness:schedule_runs' schedule.pk %}" class="btn btn-sm btn-secondary" title="실행 이력">
+                        <i class="fas fa-list"></i>
+                    </a>
+                    {% if user.is_admin %}
+                    <form method="post" action="{% url 'robustness:schedule_reset' schedule.pk %}"
+                          onsubmit="return confirm('통계를 초기화합니다. 계속할까요?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-secondary" title="통계 초기화">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                    </form>
+                    <form method="post" action="{% url 'robustness:schedule_delete' schedule.pk %}"
+                          onsubmit="return confirm('이 스케줄을 삭제합니다. 계속할까요?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-danger" title="삭제">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="10" class="text-center text-muted">연동된 Test Suite 가 없습니다. 위에서 추가하세요.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

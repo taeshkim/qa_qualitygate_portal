@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Services - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>서비스 관리</h1>
+    {% if user.is_admin %}
+    <a href="{% url 'services:service_create' %}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> 서비스 등록
+    </a>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>서비스명</th>
+                    <th>코드</th>
+                    <th>트라이브</th>
+                    <th>Slack 채널</th>
+                    <th>상태</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for service in services %}
+                <tr>
+                    <td><strong>{{ service.name }}</strong></td>
+                    <td><code>{{ service.code }}</code></td>
+                    <td>{{ service.tribe_name|default:"-" }}</td>
+                    <td>{{ service.slack_channel_id|default:"-" }}</td>
+                    <td>
+                        {% if service.is_active %}
+                        <span class="status-badge status-pass">Active</span>
+                        {% else %}
+                        <span class="status-badge status-na">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if user.is_admin %}
+                        <a href="{% url 'services:service_edit' service.pk %}" class="btn btn-sm btn-secondary">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted">등록된 서비스가 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

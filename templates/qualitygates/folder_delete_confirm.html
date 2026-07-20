@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}인스턴스 삭제 - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>인스턴스 삭제</h1>
+    <a href="{% url 'qualitygates:folder_detail' folder.pk %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> 돌아가기
+    </a>
+</div>
+
+<div class="card" style="border-left:4px solid var(--danger)">
+    <div style="margin-bottom:16px">
+        <strong><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i> 경고:</strong>
+        인스턴스 <strong>{{ folder.name }}</strong> 를 삭제하면
+        소속된 Quality Gate <strong>{{ folder.gate_count }}개</strong>와 모든 실행 이력이 함께 삭제됩니다.
+        이 작업은 되돌릴 수 없습니다.
+    </div>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="confirm_name">
+                삭제를 확인하려면 아래에 인스턴스명 <code>{{ folder.name }}</code> 을 정확히 입력하세요
+            </label>
+            <input type="text" name="confirm_name" id="confirm_name"
+                   class="form-input" autocomplete="off"
+                   placeholder="{{ folder.name }}" required>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-danger">
+                <i class="fas fa-trash"></i> 영구 삭제
+            </button>
+            <a href="{% url 'qualitygates:folder_detail' folder.pk %}" class="btn btn-secondary">취소</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

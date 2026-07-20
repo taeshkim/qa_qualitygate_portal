@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+
+{% block title %}{{ suite.name }} - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ suite.name }}</h1>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        {% if user.is_admin %}
+        <a href="{% url 'suites:suite_sync' suite.pk %}" class="btn btn-secondary">
+            <i class="fas fa-sync"></i> Sync Jobs
+        </a>
+        {% endif %}
+        {% if user.is_admin %}
+        <a href="{% url 'suites:suite_edit' suite.pk %}" class="btn btn-secondary">
+            <i class="fas fa-edit"></i> Edit
+        </a>
+        {% endif %}
+        <a href="{% url 'suites:suite_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+    </div>
+</div>
+
+{% if active_run %}
+<span id="suite-active-run-meta"
+      data-run-id="{{ active_run.pk }}"
+      data-run-status="{{ active_run.status }}"
+      data-suite-name="{{ suite.name }}"
+      data-status-url="{% url 'suites:run_status_fragment' active_run.pk %}"
+      data-run-url="{% url 'suites:run_detail' active_run.pk %}"
+      hidden></span>
+{% endif %}
+
+<!-- Suite Info -->
+<div class="card">
+    <h2 class="card-title">Suite 정보</h2>
+    <div class="detail-grid">
+        <div class="detail-item">
+            <span class="detail-label">Jenkins 소스</span>
+            <span class="detail-value">
+                {% if suite.is_external %}
+                <span class="status-badge status-warning">외부 Jenkins</span>
+                <span class="mono" style="font-size:0.8rem;margin-left:6px">{{ suite.jenkins_base_url }}</span>
+                {% else %}
+                <span class="status-badge status-pass">전용 Jenkins</span>
+                {% endif %}
+            </span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Jenkins Path</span>
+            <span class="detail-value mono" style="font-size:0.85rem">{{ suite.jenkins_folder_path }}</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Jobs</span>
+            <span class="detail-value">{{ job_status_list|length }}개</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Jenkins URL</span>
+            <span class="detail-value">
+                {% if suite.jenkins_folder_url %}
+                <a href="{{ suite.jenkins_folder_url }}" target="_blank">Open <i class="fas fa-external-link-alt"></i></a>
+                {% else %}-{% endif %}
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- Jobs -->
+<div class="card">
+    <h2 class="card-title">Job {% if user.can_write %}선택 및 실행{% else %}목록{% endif %}</h2>
+    {% if user.can_write %}
+    <form method="post" action="{% url 'suites:suite_run' suite.pk %}" id="run-form">
+        {% csrf_token %}
+    {% endif %}
+        <div class="table-wrapper">
+            <table class="table">
+                <thead>
+                    <tr>
+                        {% if user.can_write %}<th style="width:50px"></th>{% endif %}
+                        <th>#</th>
+                        <th>Job Name</th>
+                        <th>Jenkins Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in job_status_list %}
+                    <tr>
+                        {% if user.can_write %}
+                        <td class="text-center">
+                            <input type="radio" name="job_id" value="{{ item.job.pk }}"
+                                   data-building="{{ item.is_building|yesno:'true,false' }}"
+                                   style="cursor:pointer;width:16px;height:16px">
+                        </td>
+                        {% endif %}
+                        <td>{{ forloop.counter }}</td>
+                        <td><strong>{{ item.job.job_name }}</strong></td>
+                        <td>
+                            {% if item.is_building %}
+                            <span class="status-badge status-running">Running</span>
+                            {% else %}
+                            <span class="status-badge status-pass">Idle</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if user.can_write %}
+        <div style="margin-top:12px">
+            <button type="submit" class="btn btn-primary" id="run-btn" disabled>
+                <i class="fas fa-play"></i> Run
+            </button>
+            <span id="no-select-hint" class="text-muted" style="margin-left:8px;font-size:0.85rem">Job을 선택하세요</span>
+        </div>
+    </form>
+    {% endif %}
+</div>
+
+<!-- Run History -->
+<div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h2 class="card-title" style="margin:0">실행 이력</h2>
+        {% if user.is_admin and runs %}
+        <form method="post" action="{% url 'suites:runs_clear' suite.pk %}" style="margin:0"
+              onsubmit="return confirm('전체 실행 이력을 삭제하시겠습니까?\n(실행 중인 Run은 제외됩니다.)\n\n이 작업은 되돌릴 수 없습니다.');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-danger">
+                <i class="fas fa-trash-alt"></i> 전체 이력 초기화
+            </button>
+        </form>
+        {% endif %}
+    </div>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Started</th>
+                    <th>Job</th>
+                    <th>Status</th>
+                    <th>Result</th>
+                    <th>Triggered By</th>
+                    <th style="width:{% if user.is_admin %}180px{% else %}100px{% endif %}"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in runs %}
+                <tr>
+                    <td>{{ run.started_at|date:"m/d H:i:s" }}</td>
+                    <td>
+                        {% for jr in run.job_runs.all %}{{ jr.job.job_name }}{% endfor %}
+                    </td>
+                    <td>
+                        {% if run.status == "completed" %}
+                        <span class="status-badge status-pass">
+                            Completed
+                        </span>
+                        {% elif run.status == "running" %}
+                        <span class="status-badge status-running">Running</span>
+                        {% else %}
+                        <span class="status-badge status-na">{{ run.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if run.status == "completed" %}
+                            {% if run.pass_rate == 100 %}
+                            <span class="status-badge status-pass">PASS</span>
+                            {% else %}
+                            <span class="status-badge status-fail">FAIL</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ run.triggered_by|default:"-" }}</td>
+                    <td>
+                        <div style="display:flex;gap:4px;justify-content:flex-end">
+                            <a href="{% url 'suites:run_detail' run.pk %}" class="btn btn-sm btn-secondary">Detail</a>
+                            {% if user.is_admin %}
+                            <form method="post" action="{% url 'suites:run_delete' run.pk %}" style="margin:0"
+                                  onsubmit="return confirm('이 실행 이력을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-danger"
+                                        {% if run.status == "running" %}disabled title="실행 중인 Run은 삭제할 수 없습니다"{% else %}title="이 이력 삭제"{% endif %}>
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted">실행 이력이 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('run-form');
+    var btn = document.getElementById('run-btn');
+    var hint = document.getElementById('no-select-hint');
+    var radios = form.querySelectorAll('input[name="job_id"]');
+
+    radios.forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            btn.disabled = false;
+            hint.style.display = 'none';
+        });
+    });
+
+    form.addEventListener('submit', function(e) {
+        var selected = form.querySelector('input[name="job_id"]:checked');
+        if (!selected) {
+            e.preventDefault();
+            return;
+        }
+
+        var isBuilding = selected.getAttribute('data-building') === 'true';
+        if (isBuilding) {
+            e.preventDefault();
+            if (confirm('현재 실행중인 잡이라서 대기가 필요할 수 있습니다.\n그래도 진행하시겠습니까?')) {
+                form.submit();
+            }
+        }
+    });
+});
+</script>
+
+<script>
+/* Suite Detail — 활성 Suite Run 을 글로벌 watcher 에 등록 (페이지 이동해도 추적 유지).
+   알림 발사 및 터미널 감지는 qg_notify.js 의 공통 watcher 가 담당. */
+(function () {
+    const meta = document.getElementById('suite-active-run-meta');
+    if (!meta) return;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        QGNotify.updateToggleBtn();
+        QGNotify.watch('suite-run-' + meta.dataset.runId, {
+            kind: 'suite_run',
+            statusUrl: meta.dataset.statusUrl,
+            runUrl: meta.dataset.runUrl,
+            label: meta.dataset.suiteName,
+            initialStatus: meta.dataset.runStatus,
+        });
+
+        // 페이지에 있는 동안 완료되면 UI 리프레시 (기존 동작 유지)
+        QGNotify.pollStatus(meta.dataset.statusUrl, meta.dataset.runStatus, (newStatus) => {
+            if (newStatus === 'completed' || newStatus === 'cancelled' || newStatus === 'failed') {
+                setTimeout(() => location.reload(), 2000);
+                return true;
+            }
+            return false;
+        }, 5000);
+    });
+})();
+</script>
+{% endblock %}

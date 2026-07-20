@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}{% if mapping %}호스트 매핑 수정{% else %}호스트 매핑 추가{% endif %} - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>관리자</h1>
+</div>
+
+{% include "accounts/_admin_tabs.html" %}
+
+<div class="card">
+    <h2 class="card-title">
+        {% if mapping %}
+            <i class="fas fa-edit"></i> 호스트 매핑 수정
+        {% else %}
+            <i class="fas fa-plus"></i> 호스트 매핑 추가
+        {% endif %}
+    </h2>
+
+    <form method="post" style="display:flex;flex-direction:column;gap:12px;max-width:680px">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+        <div class="alert alert-error">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        {% for field in form %}
+        <div>
+            <label for="{{ field.id_for_label }}" style="display:block;font-weight:600;font-size:0.88rem;margin-bottom:4px">
+                {{ field.label }}
+                {% if field.field.required %}<span style="color:var(--danger)">*</span>{% endif %}
+            </label>
+            {{ field }}
+            {% if field.name == "variable_name" %}
+            <div class="text-muted" style="font-size:0.78rem;margin-top:2px">
+                <code>${{ '{' }}{{ '}' }}</code> 없이 변수명만 입력. 예: <code>BFF_URL</code>
+            </div>
+            {% endif %}
+            {% if field.name == "host_pattern" %}
+            <div class="text-muted" style="font-size:0.78rem;margin-top:2px">
+                <code>*</code> 와일드카드 허용. 예: <code>bff-general-*.dev.albamon.com</code>
+            </div>
+            {% endif %}
+            {% if field.errors %}
+            <div style="color:var(--danger);font-size:0.82rem;margin-top:2px">{{ field.errors }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        <div style="display:flex;gap:6px">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i> 저장
+            </button>
+            <a href="{% url 'accounts:api_host_list' %}" class="btn btn-secondary">취소</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

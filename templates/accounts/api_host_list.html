@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}호스트 매핑 - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>관리자</h1>
+</div>
+
+{% include "accounts/_admin_tabs.html" %}
+
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <h2 class="card-title" style="margin:0">
+            API 호스트 매핑
+            <span class="text-muted" style="font-size:0.85rem;font-weight:400">({{ total_count }}건)</span>
+        </h2>
+        <a href="{% url 'accounts:api_host_create' %}" class="btn btn-sm btn-primary">
+            <i class="fas fa-plus"></i> 추가
+        </a>
+    </div>
+
+    <p class="text-muted" style="font-size:0.85rem;margin-top:4px;margin-bottom:12px">
+        CSV 의 <code>${BFF_URL}</code> 같은 환경변수를 실제 호스트(예: <code>bff-general-*.dev.albamon.com</code>) 로 매핑.
+        URL 매칭에서 같은 path 후보가 여럿일 때 tie-breaker 로만 사용됩니다 (필수가 아님).
+    </p>
+
+    <form method="get" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+        <input type="text" name="q" value="{{ filter_q }}" placeholder="검색 (변수명 / 호스트 / 비고)"
+               class="form-input" style="flex:1;min-width:260px;padding:4px 8px;font-size:0.88rem">
+        <select name="env" class="form-input" style="width:auto;padding:4px 8px;font-size:0.88rem">
+            <option value="">환경 전체</option>
+            {% for v, label in envs %}
+            <option value="{{ v }}" {% if filter_env == v %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm btn-secondary"><i class="fas fa-search"></i> 검색</button>
+        {% if filter_q or filter_env %}
+        <a href="{% url 'accounts:api_host_list' %}" class="btn btn-sm btn-secondary">초기화</a>
+        {% endif %}
+    </form>
+
+    <div class="table-wrapper" style="margin-top:14px">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>환경변수</th>
+                    <th>환경</th>
+                    <th>호스트 패턴</th>
+                    <th>비고</th>
+                    <th>생성일</th>
+                    <th style="min-width:120px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in paginator_page.object_list %}
+                <tr>
+                    <td><code>${{ '{' }}{{ m.variable_name }}{{ '}' }}</code></td>
+                    <td><span class="status-badge" style="background:var(--gray-200);color:var(--text)">{{ m.get_env_display }}</span></td>
+                    <td><code>{{ m.host_pattern }}</code></td>
+                    <td>{{ m.notes|default:"-"|truncatechars:80 }}</td>
+                    <td>{{ m.created_at|date:"Y-m-d H:i" }}</td>
+                    <td>
+                        <div style="display:flex;gap:4px">
+                        <a href="{% url 'accounts:api_host_edit' m.pk %}" class="btn btn-sm btn-secondary" title="수정">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                        <form method="post" action="{% url 'accounts:api_host_delete' m.pk %}"
+                              onsubmit="return confirm('이 호스트 매핑을 삭제합니다. 계속할까요?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-danger" title="삭제">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted">등록된 호스트 매핑이 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if paginator_page.paginator.num_pages > 1 %}
+    <div style="display:flex;justify-content:center;gap:6px;margin-top:14px;align-items:center">
+        {% if paginator_page.has_previous %}
+            <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ paginator_page.previous_page_number }}" class="btn btn-sm btn-secondary">이전</a>
+        {% endif %}
+        <span class="text-muted" style="font-size:0.88rem">
+            {{ paginator_page.number }} / {{ paginator_page.paginator.num_pages }}
+        </span>
+        {% if paginator_page.has_next %}
+            <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ paginator_page.next_page_number }}" class="btn btn-sm btn-secondary">다음</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

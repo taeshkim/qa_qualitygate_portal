@@ -1,0 +1,498 @@
+{% extends "base.html" %}
+
+{% block title %}{{ gate.name }} - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ gate.name }}</h1>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        {% if user.can_write and gate.gate_type == "dev_stg" %}
+        <form method="post" action="{% url 'qualitygates:gate_toggle_auto' gate.pk %}" style="margin:0">
+            {% csrf_token %}
+            <button type="submit"
+                    class="btn {% if gate.auto_mode %}btn-primary{% else %}btn-secondary{% endif %}"
+                    title="{% if gate.auto_mode %}자동 진행이 켜져 있습니다. 클릭 시 끔.{% else %}자동 진행이 꺼져 있습니다. 클릭 시 스테이징 배포까지 기본 파라미터로 자동 진행.{% endif %}">
+                <i class="fas fa-bolt"></i> 자동 {% if gate.auto_mode %}ON{% else %}OFF{% endif %}
+            </button>
+        </form>
+        {% endif %}
+        {% if user.can_write %}
+        <form method="post" action="{% url 'qualitygates:gate_toggle_parallel' gate.pk %}" style="margin:0">
+            {% csrf_token %}
+            <button type="submit"
+                    class="btn {% if gate.parallel_test %}btn-primary{% else %}btn-secondary{% endif %}"
+                    title="{% if gate.parallel_test %}병렬 테스트가 켜져 있습니다. 클릭 시 끔.{% else %}병렬 테스트가 꺼져 있습니다. 클릭 시 모든 Test Suite 가 동시에 실행되며 마지막까지 끝나야 다음 단계로 진행.{% endif %}">
+                <i class="fas fa-layer-group"></i> 병렬 {% if gate.parallel_test %}ON{% else %}OFF{% endif %}
+            </button>
+        </form>
+        {% endif %}
+        {% if user.can_write %}
+            {% if active_run %}
+            <button type="button" class="btn btn-primary" disabled
+                    title="이전 실행이 진행 중입니다. ({{ active_run.status_display }})"
+                    style="opacity:0.5;cursor:not-allowed">
+                <i class="fas fa-play"></i> Run Gate
+            </button>
+            {% else %}
+            <button type="button" class="btn btn-primary"
+                onclick="{% if gate.auto_mode and gate.gate_type == 'dev_stg' %}submitAutoRun(){% else %}openRunModal(){% endif %}"
+                {% if pending_prod_run %}title="실행 시 이전 검수통과 배포 대기 Run 은 취소됩니다."{% endif %}>
+                <i class="fas fa-play"></i> Run Gate
+            </button>
+            {% endif %}
+        {% endif %}
+        {% if user.is_admin %}
+        <a href="{% url 'qualitygates:gate_edit' gate.pk %}" class="btn btn-secondary">
+            <i class="fas fa-edit"></i> Edit
+        </a>
+        {% endif %}
+        <a href="{% if gate.subfolder %}{% url 'qualitygates:subfolder_detail' gate.subfolder.pk %}{% elif gate.folder %}{% url 'qualitygates:folder_detail' gate.folder.pk %}{% else %}{% url 'qualitygates:folder_list' %}{% endif %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+    </div>
+</div>
+
+{% if active_run %}
+<span id="gate-active-run-meta"
+      data-run-id="{{ active_run.pk }}"
+      data-run-status="{{ active_run.status }}"
+      data-gate-name="{{ gate.name }}"
+      data-status-url="{% url 'qualitygates:run_status_fragment' active_run.pk %}"
+      data-run-url="{% url 'qualitygates:run_detail' active_run.pk %}"
+      hidden></span>
+{% endif %}
+
+{% if pending_prod_run %}
+<div class="card" style="background:#fff8e1;border-left:4px solid var(--warning, #f59e0b);margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div>
+            <strong><i class="fas fa-exclamation-triangle"></i> 검수통과 환경 배포 대기 중</strong>
+            <div style="font-size:0.85rem;color:var(--gray-600);margin-top:4px">
+                이전 실행이 QG를 통과하여 배포를 기다리고 있습니다.
+                새로 Run Gate 를 실행하면 이 대기 Run 은 <strong>취소</strong>되고 더 이상 배포를 이어갈 수 없습니다.
+            </div>
+        </div>
+        <a href="{% url 'qualitygates:run_detail' pending_prod_run.pk %}" class="btn btn-sm btn-primary">
+            <i class="fas fa-arrow-right"></i> 대기 중인 실행 보기
+        </a>
+    </div>
+</div>
+{% endif %}
+
+<!-- Gate Info -->
+<div class="card">
+    <h2 class="card-title">Gate 정보</h2>
+    <div class="detail-grid">
+        <div class="detail-item">
+            <span class="detail-label">배포 구성</span>
+            <span class="detail-value">
+                {{ gate.get_gate_type_display }}
+                {% if gate.auto_mode and gate.gate_type == "dev_stg" %}
+                <span class="status-badge status-pass" style="margin-left:6px" title="이미지 빌드/검증 배포/스테이징 배포까지 기본 파라미터로 자동 진행">
+                    <i class="fas fa-bolt"></i> 자동 진행
+                </span>
+                {% endif %}
+                {% if gate.parallel_test %}
+                <span class="status-badge status-pass" style="margin-left:6px" title="모든 Test Suite 를 동시 실행. 마지막까지 끝나야 다음 단계로 진행.">
+                    <i class="fas fa-layer-group"></i> 병렬 테스트
+                </span>
+                {% endif %}
+            </span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">검수대상 환경 배포 Jenkins</span>
+            <span class="detail-value mono" style="font-size:0.85rem">{{ gate.deploy_jenkins_url }}</span>
+        </div>
+        {% if gate.has_image_build %}
+        <div class="detail-item">
+            <span class="detail-label">Image Build Job</span>
+            <span class="detail-value mono" style="font-size:0.85rem">{{ gate.image_job_path }}</span>
+        </div>
+        {% endif %}
+        <div class="detail-item">
+            <span class="detail-label">검수대상 환경 배포 Job</span>
+            <span class="detail-value mono" style="font-size:0.85rem">{{ gate.deploy_job_path }}</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Test Suites</span>
+            <span class="detail-value">
+                {% for gs in gate.gate_suites.all %}
+                <span class="status-badge status-na" style="margin-right:4px">
+                    {{ forloop.counter }}. QG-{{ gs.test_suite.name }}
+                </span>
+                {% endfor %}
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- Run History -->
+<div class="card">
+    <h2 class="card-title">실행 이력</h2>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width:60px">#</th>
+                    <th>Time</th>
+                    <th>Status</th>
+                    <th>검수대상 배포</th>
+                    <th>Tests</th>
+                    <th>Result</th>
+                    <th>By</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in runs %}
+                <tr>
+                    <td><span class="text-muted mono">#{{ run.seq_no }}</span></td>
+                    <td>{{ run.created_at|date:"m/d H:i:s" }}</td>
+                    <td>
+                        {% if run.is_cancelled %}
+                        <span class="status-badge status-na">Cancelled</span>
+                        {% elif run.is_terminal %}
+                        <span class="status-badge {% if run.is_success %}status-pass{% else %}status-fail{% endif %}">
+                            Completed
+                        </span>
+                        {% else %}
+                        <span class="status-badge status-running">{{ run.status_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if run.deploy_completed_at %}
+                        <span class="status-badge status-pass">Done</span>
+                        {% elif run.status == "deploy_failed" %}
+                        <span class="status-badge status-fail">Failed</span>
+                        {% elif run.status == "deploying" %}
+                        <span class="status-badge status-running">Running</span>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>
+                        {% for tr in run.test_runs.all %}
+                            {% if tr.status == "passed" %}
+                            <span class="status-badge status-pass" title="QG-{{ tr.gate_suite.test_suite.name }}">P</span>
+                            {% elif tr.status == "failed" %}
+                            <span class="status-badge status-fail" title="QG-{{ tr.gate_suite.test_suite.name }}">F</span>
+                            {% elif tr.status == "testing" or tr.status == "waiting" %}
+                            <span class="status-badge status-running" title="QG-{{ tr.gate_suite.test_suite.name }}">R</span>
+                            {% else %}
+                            <span class="status-badge status-na" title="QG-{{ tr.gate_suite.test_suite.name }}">-</span>
+                            {% endif %}
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% if run.result_label == "PASS" %}
+                        <strong class="text-success">PASS</strong>
+                        {% elif run.result_label == "FAIL" %}
+                        <strong class="text-danger">FAIL</strong>
+                        {% elif run.result_label == "CANCELLED" %}
+                        <span class="text-muted">CANCELLED</span>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>{{ run.triggered_by|default:"-" }}</td>
+                    <td>
+                        <a href="{% url 'qualitygates:run_detail' run.pk %}" class="btn btn-sm btn-secondary">Detail</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted">실행 이력이 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if user.can_write and not active_run %}
+<!-- Run Gate Parameter Modal -->
+<div id="run-modal" class="qg-modal-backdrop" style="display:none">
+    <div class="qg-modal">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h3 style="margin:0">Run Gate</h3>
+            <button type="button" id="run-modal-refresh" onclick="refreshRunParams()" title="파라미터 재조회 (캐시 무시)" style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.82rem;display:none">
+                <i class="fas fa-sync"></i> 새로고침
+            </button>
+        </div>
+        {% if gate.has_image_build %}
+        <div id="run-modal-mode" style="margin-bottom:14px;padding:10px 12px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px">
+            <div style="font-size:0.85rem;font-weight:600;margin-bottom:8px">실행 옵션</div>
+            <label class="qg-mode-opt">
+                <input type="radio" name="run_mode" value="full" checked onchange="onRunModeChange()">
+                <span class="qg-mode-text">
+                    <strong>전체 진행하기</strong>
+                    <small>이미지 빌드 → 검수대상 배포 → 테스트 → 검수통과 배포 (있을 때)</small>
+                </span>
+            </label>
+            <label class="qg-mode-opt">
+                <input type="radio" name="run_mode" value="skip_image" onchange="onRunModeChange()">
+                <span class="qg-mode-text">
+                    <strong>이미지 빌드 없이 실행하기</strong>
+                    <small>이미지 빌드 단계를 건너뛰고 검수대상 배포부터 시작</small>
+                </span>
+            </label>
+        </div>
+        {% endif %}
+        <div id="run-modal-body">
+            <p class="text-muted">Jenkins Job 파라미터 확인 중...</p>
+        </div>
+        <form id="run-modal-form" method="post" action="{% url 'qualitygates:gate_run' gate.pk %}" style="display:none">
+            {% csrf_token %}
+            <input type="hidden" name="skip_image_build" id="run-modal-skip-image" value="0">
+            <div id="run-modal-params"></div>
+            <div id="run-modal-cache-info" style="display:none;font-size:0.75rem;color:#6b7280;margin-top:8px"></div>
+            <div class="form-actions" style="margin-top:16px">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-play"></i> 실행</button>
+                <button type="button" class="btn btn-secondary" onclick="closeRunModal()">취소</button>
+            </div>
+        </form>
+        <div id="run-modal-error" class="alert alert-error" style="display:none"></div>
+        <div id="run-modal-close-wrap" class="form-actions" style="display:none;margin-top:16px">
+            <button type="button" class="btn btn-secondary" onclick="closeRunModal()">닫기</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.qg-modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 1000; display: flex; align-items: center; justify-content: center;
+}
+.qg-modal {
+    background: #fff; border-radius: 8px; padding: 24px;
+    width: 90%; max-width: 520px; max-height: 90vh; overflow-y: auto;
+}
+.qg-param-row { margin-bottom: 12px; }
+.qg-param-row label { display:block; font-weight: 600; margin-bottom: 4px; font-size: 0.9rem; }
+.qg-param-row small { color: var(--gray-600); }
+.qg-mode-opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    cursor: pointer;
+    padding: 6px 0;
+}
+.qg-mode-opt input[type="radio"] {
+    margin: 3px 0 0 0;
+    flex: 0 0 auto;
+}
+.qg-mode-opt .qg-mode-text { display: block; line-height: 1.35; }
+.qg-mode-opt .qg-mode-text strong { display: block; line-height: 1.35; }
+.qg-mode-opt .qg-mode-text small {
+    display: block;
+    color: #6b7280;
+    font-size: 0.78rem;
+    line-height: 1.35;
+    margin-top: 2px;
+}
+</style>
+
+<script>
+/* 페이지 로드 시 백그라운드로 파라미터 prefetch → 서버 캐시 warm up.
+   사용자가 [Run] 버튼을 누르면 이미 캐시된 결과라 모달이 즉시 뜸.
+   모드(전체 / 이미지 빌드 스킵) 별로 prefetch 결과를 분리 캐싱. */
+const RUN_PARAMS_URL = "{% url 'qualitygates:gate_run_params' gate.pk %}";
+const GATE_HAS_IMAGE_BUILD = {% if gate.has_image_build %}true{% else %}false{% endif %};
+const runParamsPromiseByMode = { full: null, skip_image: null };
+
+function buildRunParamsUrl(skipImage, forceRefresh) {
+    const params = [];
+    if (skipImage) params.push('skip_image=1');
+    if (forceRefresh) params.push('refresh=1');
+    return params.length ? RUN_PARAMS_URL + '?' + params.join('&') : RUN_PARAMS_URL;
+}
+
+function fetchRunParams(forceRefresh, skipImage) {
+    const url = buildRunParamsUrl(skipImage, forceRefresh);
+    return fetch(url, {credentials: 'same-origin'})
+        .then(r => r.json().then(d => ({ok: r.ok, data: d})));
+}
+
+function getCurrentRunMode() {
+    if (!GATE_HAS_IMAGE_BUILD) return 'full';
+    const sel = document.querySelector('input[name="run_mode"]:checked');
+    return sel ? sel.value : 'full';
+}
+
+/* 페이지 로드 직후 prefetch. 기본 모드(전체 진행) 만 prefetch. */
+document.addEventListener('DOMContentLoaded', () => {
+    // 약간 지연을 줘서 페이지 렌더링/알림 등록 등 다른 작업에 우선순위를 양보
+    setTimeout(() => {
+        runParamsPromiseByMode.full = fetchRunParams(false, false).catch(() => null);
+    }, 300);
+});
+
+function renderParams(data, body, form, paramsEl, errEl, closeWrap, cacheInfoEl, refreshBtn, isRefresh) {
+    if (!data || !data.ok) {
+        errEl.textContent = 'Jenkins 연결 실패: ' + ((data && data.error) || 'unknown');
+        errEl.style.display = 'block';
+        body.style.display = 'none';
+        closeWrap.style.display = 'flex';
+        return;
+    }
+    body.style.display = 'none';
+    refreshBtn.style.display = 'inline-block';
+    const params = data.parameters || [];
+    if (params.length === 0) {
+        paramsEl.innerHTML = '<p>배포 → 테스트를 실행합니다. 계속할까요?</p>';
+    } else {
+        paramsEl.innerHTML = '<p class="text-muted" style="margin-bottom:12px">이 Job은 파라미터 빌드입니다. 값을 입력하세요.</p>' +
+            params.map(p => renderParam(p)).join('');
+    }
+    if (cacheInfoEl) {
+        cacheInfoEl.textContent = data.cached
+            ? '⚡ 캐시된 파라미터 (최대 120초 유효). 최신 값이 필요하면 우측 상단 [새로고침] 클릭.'
+            : (isRefresh ? '🔄 Jenkins 에서 방금 재조회했습니다.' : '✓ Jenkins 에서 방금 조회했습니다. 이후 120초간 캐시됨.');
+        cacheInfoEl.style.display = 'block';
+    }
+    form.style.display = 'block';
+}
+
+/* auto_mode 전용: 파라미터 모달 없이 실행 여부만 확인하고 바로 폼 전송.
+   서버의 gate_run 뷰가 빈 POST 를 받으면 Jenkins Job 의 default 를 수집해 사용한다. */
+function submitAutoRun() {
+    if (!confirm('자동 진행 모드입니다. 기본 파라미터로 실행할까요?')) return;
+    document.getElementById('run-modal-form').submit();
+}
+
+function loadRunParams(forceRefresh) {
+    const mode = getCurrentRunMode();
+    const skipImage = mode === 'skip_image';
+    const body = document.getElementById('run-modal-body');
+    const form = document.getElementById('run-modal-form');
+    const paramsEl = document.getElementById('run-modal-params');
+    const errEl = document.getElementById('run-modal-error');
+    const closeWrap = document.getElementById('run-modal-close-wrap');
+    const cacheInfoEl = document.getElementById('run-modal-cache-info');
+    const refreshBtn = document.getElementById('run-modal-refresh');
+    const skipInput = document.getElementById('run-modal-skip-image');
+
+    if (skipInput) skipInput.value = skipImage ? '1' : '0';
+
+    form.style.display = 'none';
+    errEl.style.display = 'none';
+    cacheInfoEl.style.display = 'none';
+    closeWrap.style.display = 'none';
+    refreshBtn.style.display = 'none';
+    paramsEl.innerHTML = '';
+    body.style.display = 'block';
+    body.innerHTML = '<p class="text-muted"><i class="fas fa-spinner fa-spin"></i> ' +
+        (forceRefresh ? 'Jenkins 에서 재조회 중...' : 'Jenkins Job 파라미터 확인 중...') + '</p>';
+
+    let promise;
+    if (forceRefresh) {
+        promise = fetchRunParams(true, skipImage);
+        runParamsPromiseByMode[mode] = promise;
+    } else {
+        promise = runParamsPromiseByMode[mode] || fetchRunParams(false, skipImage);
+        runParamsPromiseByMode[mode] = promise;
+    }
+
+    promise.then((resp) => {
+        if (!resp) { throw new Error('prefetch failed'); }
+        // 응답이 도착하기 전 사용자가 모드를 바꿨다면 무시 — 현재 모드 fetch 가 이어서 처리.
+        if (getCurrentRunMode() !== mode) return;
+        renderParams(resp.data, body, form, paramsEl, errEl, closeWrap, cacheInfoEl, refreshBtn, forceRefresh);
+    })
+    .catch(err => {
+        if (forceRefresh) {
+            errEl.textContent = '요청 실패: ' + err;
+            errEl.style.display = 'block';
+            body.style.display = 'none';
+            closeWrap.style.display = 'flex';
+            return;
+        }
+        // prefetch 가 실패했다면 즉시 재시도
+        fetchRunParams(false, skipImage)
+            .then(({data}) => {
+                if (getCurrentRunMode() !== mode) return;
+                renderParams(data, body, form, paramsEl, errEl, closeWrap, cacheInfoEl, refreshBtn, false);
+            })
+            .catch(e => {
+                errEl.textContent = '요청 실패: ' + e;
+                errEl.style.display = 'block';
+                body.style.display = 'none';
+                closeWrap.style.display = 'flex';
+            });
+    });
+}
+
+function openRunModal() {
+    document.getElementById('run-modal').style.display = 'flex';
+    loadRunParams(false);
+}
+
+function refreshRunParams() {
+    loadRunParams(true);
+}
+
+function onRunModeChange() {
+    loadRunParams(false);
+}
+
+function renderParam(p) {
+    const name = p.name || '';
+    const defval = p.default == null ? '' : String(p.default);
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const type = (p.type || '').toLowerCase();
+    const isGit = type.includes('git');
+    const hasChoices = Array.isArray(p.choices) && p.choices.length > 0;
+    let input;
+    if (type.includes('boolean')) {
+        const checked = defval === 'true' || defval === 'True' ? 'checked' : '';
+        input = `<input type="hidden" name="param_${esc(name)}" value="false">` +
+                `<input type="checkbox" name="param_${esc(name)}" value="true" ${checked}>`;
+    } else if (hasChoices) {
+        input = `<select name="param_${esc(name)}" class="form-input">` +
+                p.choices.map(c => `<option value="${esc(c)}" ${c===defval?'selected':''}>${esc(c)}</option>`).join('') +
+                `</select>`;
+    } else if (type.includes('text')) {
+        input = `<textarea name="param_${esc(name)}" class="form-input" rows="3">${esc(defval)}</textarea>`;
+    } else {
+        input = `<input type="text" name="param_${esc(name)}" class="form-input" value="${esc(defval)}">`;
+    }
+    const warn = (isGit && !hasChoices)
+        ? `<div style="margin-top:4px;padding:6px 8px;background:#fff8e1;border-left:3px solid #f59e0b;font-size:0.8rem;color:#92400e"><i class="fas fa-exclamation-triangle"></i> Git Parameter 입니다. 기본값(<code>${esc(defval)}</code>)이 실제 저장소에 없는 브랜치/태그일 수 있으니 실존하는 이름으로 직접 입력하세요.</div>`
+        : '';
+    return `<div class="qg-param-row"><label>${esc(name)} <small>(${esc(p.type||'')})</small></label>${input}${warn}</div>`;
+}
+
+function closeRunModal() {
+    document.getElementById('run-modal').style.display = 'none';
+}
+</script>
+{% endif %}
+
+<script>
+/* Gate Detail — 활성 Run 을 글로벌 watcher 에 등록 (페이지 이동해도 계속 추적).
+   알림 발사 및 터미널 감지는 qg_notify.js 의 공통 watcher 가 담당. */
+(function () {
+    const meta = document.getElementById('gate-active-run-meta');
+    if (!meta) return;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        QGNotify.updateToggleBtn();
+        QGNotify.watch('qg-run-' + meta.dataset.runId, {
+            kind: 'qg_run',
+            statusUrl: meta.dataset.statusUrl,
+            runUrl: meta.dataset.runUrl,
+            label: meta.dataset.gateName,
+            initialStatus: meta.dataset.runStatus,
+        });
+    });
+
+    // 이 페이지에 있는 동안 터미널 도달 시 UI 리프레시 (기존 동작 유지)
+    document.addEventListener('DOMContentLoaded', () => {
+        QGNotify.pollStatus(meta.dataset.statusUrl, meta.dataset.runStatus, (newStatus) => {
+            const TERMINAL = ['completed', 'failed', 'image_build_failed', 'deploy_failed', 'prod_deploy_failed', 'cancelled'];
+            if (TERMINAL.indexOf(newStatus) !== -1) {
+                setTimeout(() => location.reload(), 2000);
+                return true;
+            }
+            return false;
+        }, 5000);
+    });
+})();
+</script>
+{% endblock %}

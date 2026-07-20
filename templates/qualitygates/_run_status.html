@@ -1,0 +1,519 @@
+<span id="run-meta"
+      data-run-status="{{ run.status }}"
+      data-run-gate="{{ run.gate.name }}"
+      data-run-terminal="{% if run.is_terminal %}1{% else %}0{% endif %}"
+      hidden></span>
+
+<!-- Result Banner -->
+<div class="card" style="margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:16px">
+        <div>
+            {% if run.is_cancelled %}
+            <span class="result-large status-na" style="font-size:1.5rem">CANCELLED</span>
+            {% elif run.is_success %}
+            <span class="result-large status-pass">PASS</span>
+            {% elif run.is_failed %}
+            <span class="result-large status-fail">FAIL</span>
+            {% elif run.status == "building_image" %}
+            <span class="result-large status-running" style="font-size:1.5rem">Building Image...</span>
+            {% elif run.status == "deploying" %}
+            <span class="result-large status-running" style="font-size:1.5rem">Deploying...</span>
+            {% elif run.status == "waiting_deploy" %}
+            <span class="result-large status-running" style="font-size:1.5rem">배포 대기 중...</span>
+            {% elif run.status == "waiting_test" %}
+            <span class="result-large status-running" style="font-size:1.5rem">Waiting for Test...</span>
+            {% elif run.status == "testing" %}
+            {% if run.gate.parallel_test %}
+            <span class="result-large status-running" style="font-size:1.5rem">Testing 병렬 ({{ sec2_done }}/{{ sec2_total }} 완료)...</span>
+            {% else %}
+            <span class="result-large status-running" style="font-size:1.5rem">Testing ({{ sec2_done|add:1 }}/{{ sec2_total }})...</span>
+            {% endif %}
+            {% else %}
+            <span class="result-large status-na" style="font-size:1.5rem">{{ run.status_display }}</span>
+            {% endif %}
+        </div>
+        <div style="font-size:0.85rem;color:var(--gray-500)">
+            {{ run.created_at|date:"Y-m-d H:i:s" }}
+            {% if run.triggered_by %}by {{ run.triggered_by }}{% endif %}
+        </div>
+        {% if run.can_cancel and user.can_write %}
+        <form method="post" action="{% url 'qualitygates:cancel_run' run.pk %}" style="margin-left:auto"
+              onsubmit="return confirm('이 Run을 취소하시겠습니까? 진행 중인 Jenkins 빌드는 중단(abort)됩니다.');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-danger">
+                <i class="fas fa-ban"></i> Run 취소
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Pipeline Steps -->
+<div class="card" style="margin-bottom:20px">
+    <h2 class="card-title">Pipeline</h2>
+    <div class="qg-pipeline">
+        <!-- Section 1: Image Build + 검수대상 환경 배포 -->
+        <div class="qg-section">
+        <div class="qg-section-title">
+            <i class="fas fa-hammer"></i>
+            <span>빌드 &amp; 검수대상 환경 배포</span>
+            <span class="qg-section-count">({{ sec1_done }}/{{ sec1_total }})</span>
+        </div>
+        <div class="qg-pipeline-row">
+        {% if run.image_stage_present %}
+        <!-- Step: Image Build -->
+        <div class="qg-step {% if run.status == 'building_image' %}qg-step-active{% elif run.image_completed_at and run.status != 'image_build_failed' %}qg-step-done{% elif run.status == 'image_build_failed' %}qg-step-fail{% endif %}">
+            <div class="qg-step-header">
+                <span class="qg-step-number">1</span>
+                <strong>Image Build</strong>
+                {% if run.status == "building_image" %}
+                <span class="status-badge status-running">Running</span>
+                {% elif run.status == "image_build_failed" %}
+                <span class="status-badge status-fail">Failed</span>
+                {% elif run.image_completed_at %}
+                <span class="status-badge status-pass">Done</span>
+                {% endif %}
+            </div>
+            <div class="qg-step-body">
+                <div>Job: <span class="mono">{{ run.gate.image_job_path }}</span></div>
+                {% if run.image_build_number %}
+                <div>Build: #{{ run.image_build_number }}</div>
+                {% endif %}
+                {% if run.image_duration_ms %}
+                <div>Duration: {% widthratio run.image_duration_ms 1000 1 %}s</div>
+                {% endif %}
+                {% if run.image_git_branch %}
+                <div title="{{ run.image_git_branch }}">
+                    <i class="fas fa-code-branch"></i>
+                    <span class="mono">{{ run.image_git_branch }}</span>
+                </div>
+                {% endif %}
+                {% if run.image_git_commit %}
+                <div title="{{ run.image_git_commit }}">
+                    <i class="fas fa-hashtag"></i>
+                    <span class="mono">{{ run.image_git_commit|slice:":8" }}</span>
+                </div>
+                {% endif %}
+                {% if run.image_stages_json %}
+                <div style="margin-top:8px">
+                    <div class="stage-pipeline">
+                        {% for stage in run.image_stages_json %}
+                        <span class="stage-dot stage-{{ stage.status|lower }}"
+                              title="{{ forloop.counter }}. {{ stage.name }}"></span>
+                        {% endfor %}
+                    </div>
+                    {% if run.image_current_stage %}
+                    <div class="stage-current">{{ run.image_current_stage }}</div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if run.image_build_url or run.image_console_output %}
+                <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">
+                    {% if run.image_build_url %}
+                    <a href="{{ run.image_build_url }}" target="_blank" class="btn btn-sm btn-secondary">
+                        <i class="fas fa-external-link-alt"></i> Jenkins
+                    </a>
+                    {% endif %}
+                    {% if run.image_console_output %}
+                    <a href="{% url 'qualitygates:image_console' run.pk %}" class="btn btn-sm btn-secondary">
+                        <i class="fas fa-terminal"></i> Console
+                    </a>
+                    {% if run.status == "image_build_failed" %}
+                    <a href="{% url 'qualitygates:image_error_log' run.pk %}" class="btn btn-sm btn-danger"
+                       title="콘솔 로그에서 실패 원인만 파싱해서 보여줍니다">
+                        <i class="fas fa-bug"></i> Error Log
+                    </a>
+                    {% endif %}
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Step: Deploy -->
+        <div class="qg-step {% if run.status == 'deploying' %}qg-step-active{% elif run.deploy_completed_at %}qg-step-done{% elif run.status == 'deploy_failed' %}qg-step-fail{% elif run.status == 'waiting_deploy' %}qg-step-waiting{% endif %}">
+            <div class="qg-step-header">
+                <span class="qg-step-number">{{ step_offset|add:1 }}</span>
+                <strong>검수대상 환경 배포</strong>
+                {% if run.status == "deploying" %}
+                <span class="status-badge status-running">Running</span>
+                {% elif run.deploy_completed_at %}
+                <span class="status-badge status-pass">Done</span>
+                {% elif run.status == "deploy_failed" %}
+                <span class="status-badge status-fail">Failed</span>
+                {% elif run.status == "waiting_deploy" %}
+                <span class="status-badge status-na">Waiting</span>
+                {% endif %}
+            </div>
+            <div class="qg-step-body">
+                <div>Job: <span class="mono">{{ run.gate.deploy_job_path }}</span></div>
+                {% if run.deploy_build_number %}
+                <div>Build: #{{ run.deploy_build_number }}</div>
+                {% endif %}
+                {% if run.deploy_duration_ms %}
+                <div>Duration: {% widthratio run.deploy_duration_ms 1000 1 %}s</div>
+                {% endif %}
+                {% if run.deploy_stages_json %}
+                <div style="margin-top:8px">
+                    <div class="stage-pipeline">
+                        {% for stage in run.deploy_stages_json %}
+                        <span class="stage-dot stage-{{ stage.status|lower }}"
+                              title="{{ forloop.counter }}. {{ stage.name }}"></span>
+                        {% endfor %}
+                    </div>
+                    {% if run.deploy_current_stage %}
+                    <div class="stage-current">{{ run.deploy_current_stage }}</div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if run.gate.deploy_argocd_app_url %}
+                <div style="margin-top:6px;font-size:0.85rem">
+                    <span class="text-muted">Argo CD:</span>
+                    {% if run.deploy_argocd_synced_at %}
+                    <span class="status-badge status-pass">Synced &amp; Healthy</span>
+                    {% elif run.deploy_argocd_sync_requested_at %}
+                        {% with badge=run.deploy_argocd_badge %}
+                        <span class="status-badge status-{{ badge.level }}" title="Sync: {{ run.deploy_argocd_sync_status|default:'-' }} / Health: {{ run.deploy_argocd_health_status|default:'-' }} / Operation: {{ run.deploy_argocd_operation_phase|default:'-' }}">
+                            {{ badge.label }}
+                        </span>
+                        {% endwith %}
+                    {% else %}
+                    <span class="text-muted">확인 전</span>
+                    {% endif %}
+                    {% if not run.gate.has_deploy_argocd %}
+                    <span class="status-badge status-fail" style="margin-left:8px"
+                          title="선택한 토큰 환경({{ run.gate.deploy_argocd_env }})의 Argo CD 토큰이 인스턴스에 비어 있어 sync 체크가 건너뛰어졌습니다. 인스턴스 설정에서 토큰을 채운 뒤 Retry Sync 를 눌러주세요.">
+                        토큰 없음 ({{ run.gate.deploy_argocd_env }})
+                    </span>
+                    {% endif %}
+                    {% if user.can_write %}
+                        {% if run.deploy_argocd_synced_at or run.deploy_argocd_badge.kind == 'failed' %}
+                        <form method="post" action="{% url 'qualitygates:argocd_retry' run.pk 'deploy' %}" style="display:inline;margin-left:8px">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-secondary" title="Argo CD 에 refresh+sync 를 다시 요청합니다">
+                                <i class="fas fa-redo"></i> Retry Sync
+                            </button>
+                        </form>
+                        {% endif %}
+                    {% endif %}
+                    {% if run.deploy_argocd_operation_phase and not run.deploy_argocd_synced_at %}
+                    <div style="margin-top:4px;font-size:0.8rem;color:var(--gray-600)">
+                        Operation: <strong>{{ run.deploy_argocd_operation_phase }}</strong>
+                        {% if run.deploy_argocd_operation_message %} — {{ run.deploy_argocd_operation_message }}{% endif %}
+                    </div>
+                    {% endif %}
+                    {% if run.show_deploy_argocd_error %}
+                    <div style="margin-top:4px;font-size:0.8rem;color:var(--danger)">
+                        <i class="fas fa-exclamation-circle"></i> {{ run.deploy_argocd_sync_error }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if run.deploy_build_url or run.deploy_console_output or run.deploy_argocd_sync_requested_at %}
+                <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">
+                    {% if run.deploy_build_url %}
+                    <a href="{{ run.deploy_build_url }}" target="_blank" class="btn btn-sm btn-secondary">
+                        <i class="fas fa-external-link-alt"></i> Jenkins
+                    </a>
+                    {% endif %}
+                    {% if run.deploy_console_output %}
+                    <a href="{% url 'qualitygates:deploy_console' run.pk %}" class="btn btn-sm btn-secondary">
+                        <i class="fas fa-terminal"></i> Console
+                    </a>
+                    {% if run.status == "deploy_failed" %}
+                    <a href="{% url 'qualitygates:deploy_error_log' run.pk %}" class="btn btn-sm btn-danger"
+                       title="콘솔 로그에서 실패 원인만 파싱해서 보여줍니다">
+                        <i class="fas fa-bug"></i> Error Log
+                    </a>
+                    {% endif %}
+                    {% endif %}
+                    {% if run.deploy_argocd_sync_requested_at %}
+                    <a href="{{ run.gate.deploy_argocd_app_url }}" target="_blank" class="btn btn-sm btn-secondary"
+                       title="Argo CD 콘솔에서 sync 진행 상태를 직접 확인">
+                        <i class="fas fa-ship"></i> Argo CD
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        </div>
+        </div>
+        <!-- /Section 1 -->
+
+        <!-- Section 2: Test Suites -->
+        <div class="qg-section qg-section-tests">
+        <div class="qg-section-title">
+            <i class="fas fa-vial"></i>
+            <span>테스트</span>
+            <span class="qg-section-count">({{ sec2_done }}/{{ sec2_total }})</span>
+        </div>
+        <div class="qg-pipeline-row qg-pipeline-row-tests">
+        {% for tr in test_runs %}
+        <div class="qg-step {% if tr.status == 'testing' %}qg-step-active{% elif tr.status == 'passed' %}qg-step-done{% elif tr.status == 'failed' %}qg-step-fail{% elif tr.status == 'waiting' %}qg-step-waiting{% endif %}">
+            <div class="qg-step-header">
+                <span class="qg-step-number">{{ forloop.counter|add:1|add:step_offset }}</span>
+                <strong>QG-{{ tr.gate_suite.test_suite.name }}</strong>
+                {% if tr.status == "testing" %}
+                <span class="status-badge status-running">Testing</span>
+                {% elif tr.status == "passed" %}
+                <span class="status-badge status-pass">Pass</span>
+                {% elif tr.status == "failed" %}
+                <span class="status-badge status-fail">Fail</span>
+                {% elif tr.status == "waiting" %}
+                <span class="status-badge status-na">Waiting</span>
+                {% endif %}
+            </div>
+            <div class="qg-step-body">
+                {% if tr.job_run %}
+                <div>Job: {{ tr.job_run.job.job_name }}</div>
+                {% if tr.job_run.jenkins_build_number %}
+                <div>Build: #{{ tr.job_run.jenkins_build_number }}</div>
+                {% endif %}
+                {% if tr.job_run.duration_seconds %}
+                <div>Duration: {{ tr.job_run.duration_seconds }}s</div>
+                {% endif %}
+                {% if tr.job_run.stages_json %}
+                <div style="margin-top:8px">
+                    <div class="stage-pipeline">
+                        {% for stage in tr.job_run.display_stages_json %}
+                        <span class="stage-dot stage-{{ stage.status|lower }}"
+                              title="{{ forloop.counter }}. {{ stage.name|default:'Stage' }}"></span>
+                        {% endfor %}
+                    </div>
+                    <div class="stage-current">
+                        <span class="stage-count">{{ tr.job_run.stages_current_number }}/{{ tr.job_run.stages_total }}</span>
+                        {% if tr.job_run.current_stage %}{{ tr.job_run.current_stage }}{% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                {% if tr.job_run.jenkins_build_url or tr.job_run.console_output %}
+                <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">
+                    {% if tr.job_run.jenkins_build_url %}
+                    <a href="{{ tr.job_run.jenkins_build_url }}" target="_blank" class="btn btn-sm btn-secondary">
+                        <i class="fas fa-external-link-alt"></i> Jenkins
+                    </a>
+                    {% endif %}
+                    {% if tr.job_run.console_output %}
+                    <a href="{% url 'suites:job_run_console' tr.job_run.pk %}" class="btn btn-sm btn-secondary">
+                        <i class="fas fa-terminal"></i> Console
+                    </a>
+                    {% if tr.status == "failed" or tr.job_run.status == "failure" %}
+                    <a href="{% url 'suites:job_run_error_log' tr.job_run.pk %}" class="btn btn-sm btn-danger"
+                       title="콘솔 로그에서 실패 원인만 파싱해서 보여줍니다">
+                        <i class="fas fa-bug"></i> Error Log
+                    </a>
+                    {% endif %}
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% elif tr.status == "pending" %}
+                <div class="text-muted">대기 중</div>
+                {% elif tr.status == "waiting" %}
+                <div class="text-muted">Idle Job 대기 중...</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        </div>
+        </div>
+        <!-- /Section 2 -->
+
+        {% if run.gate.has_prod_deploy %}
+        <!-- Section 3: 검수통과 환경 배포 -->
+        <div class="qg-section">
+        <div class="qg-section-title">
+            <i class="fas fa-rocket"></i>
+            <span>검수통과 환경 배포</span>
+            <span class="qg-section-count">({{ sec3_done }}/{{ sec3_total }})</span>
+        </div>
+        <div class="qg-pipeline-row">
+        <!-- Step: Prod Deploy -->
+        <div class="qg-step {% if run.status == 'prod_deploying' %}qg-step-active{% elif run.status == 'completed' %}qg-step-done{% elif run.status == 'prod_deploy_failed' %}qg-step-fail{% elif run.status == 'qg_passed' %}qg-step-waiting{% endif %}">
+            <div class="qg-step-header">
+                <span class="qg-step-number">{{ test_runs|length|add:2|add:step_offset }}</span>
+                <strong>검수통과 환경 배포</strong>
+                {% if run.status == "prod_deploying" %}
+                <span class="status-badge status-running">Deploying</span>
+                {% elif run.status == "completed" %}
+                <span class="status-badge status-pass">Done</span>
+                {% elif run.status == "prod_deploy_failed" %}
+                <span class="status-badge status-fail">Failed</span>
+                {% elif run.status == "qg_passed" %}
+                <span class="status-badge status-na">Waiting</span>
+                {% endif %}
+            </div>
+            <div class="qg-step-body">
+                <div>Job: <span class="mono">{{ run.gate.prod_job_path }}</span></div>
+                {% if run.prod_build_number %}
+                <div>Build: #{{ run.prod_build_number }}</div>
+                {% endif %}
+                {% if run.prod_duration_ms %}
+                <div>Duration: {% widthratio run.prod_duration_ms 1000 1 %}s</div>
+                {% endif %}
+                {% if run.prod_stages_json %}
+                <div style="margin-top:8px">
+                    <div class="stage-pipeline">
+                        {% for stage in run.prod_stages_json %}
+                        <span class="stage-dot stage-{{ stage.status|lower }}"
+                              title="{{ forloop.counter }}. {{ stage.name }}"></span>
+                        {% endfor %}
+                    </div>
+                    {% if run.prod_current_stage %}
+                    <div class="stage-current">{{ run.prod_current_stage }}</div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if run.gate.prod_argocd_app_url %}
+                <div style="margin-top:6px;font-size:0.85rem">
+                    <span class="text-muted">Argo CD:</span>
+                    {% if run.prod_argocd_synced_at %}
+                    <span class="status-badge status-pass">Synced &amp; Healthy</span>
+                    {% elif run.prod_argocd_sync_requested_at %}
+                        {% with badge=run.prod_argocd_badge %}
+                        <span class="status-badge status-{{ badge.level }}" title="Sync: {{ run.prod_argocd_sync_status|default:'-' }} / Health: {{ run.prod_argocd_health_status|default:'-' }} / Operation: {{ run.prod_argocd_operation_phase|default:'-' }}">
+                            {{ badge.label }}
+                        </span>
+                        {% endwith %}
+                    {% else %}
+                    <span class="text-muted">확인 전</span>
+                    {% endif %}
+                    {% if not run.gate.has_prod_argocd %}
+                    <span class="status-badge status-fail" style="margin-left:8px"
+                          title="선택한 토큰 환경({{ run.gate.prod_argocd_env }})의 Argo CD 토큰이 인스턴스에 비어 있어 sync 체크가 건너뛰어졌습니다. 인스턴스 설정에서 토큰을 채운 뒤 Retry Sync 를 눌러주세요.">
+                        토큰 없음 ({{ run.gate.prod_argocd_env }})
+                    </span>
+                    {% endif %}
+                    {% if user.can_write %}
+                        {% if run.prod_argocd_synced_at or run.prod_argocd_badge.kind == 'failed' %}
+                        <form method="post" action="{% url 'qualitygates:argocd_retry' run.pk 'prod' %}" style="display:inline;margin-left:8px">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-secondary" title="Argo CD 에 refresh+sync 를 다시 요청합니다">
+                                <i class="fas fa-redo"></i> Retry Sync
+                            </button>
+                        </form>
+                        {% endif %}
+                    {% endif %}
+                    {% if run.prod_argocd_operation_phase and not run.prod_argocd_synced_at %}
+                    <div style="margin-top:4px;font-size:0.8rem;color:var(--gray-600)">
+                        Operation: <strong>{{ run.prod_argocd_operation_phase }}</strong>
+                        {% if run.prod_argocd_operation_message %} — {{ run.prod_argocd_operation_message }}{% endif %}
+                    </div>
+                    {% endif %}
+                    {% if run.show_prod_argocd_error %}
+                    <div style="margin-top:4px;font-size:0.8rem;color:var(--danger)">
+                        <i class="fas fa-exclamation-circle"></i> {{ run.prod_argocd_sync_error }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if run.prod_build_url or run.prod_console_output or run.prod_argocd_sync_requested_at %}
+                <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">
+                    {% if run.prod_build_url %}
+                    <a href="{{ run.prod_build_url }}" target="_blank" class="btn btn-sm btn-secondary">
+                        <i class="fas fa-external-link-alt"></i> Jenkins
+                    </a>
+                    {% endif %}
+                    {% if run.prod_console_output %}
+                    <a href="{% url 'qualitygates:prod_console' run.pk %}" class="btn btn-sm btn-secondary">
+                        <i class="fas fa-terminal"></i> Console
+                    </a>
+                    {% if run.status == "prod_deploy_failed" %}
+                    <a href="{% url 'qualitygates:prod_error_log' run.pk %}" class="btn btn-sm btn-danger"
+                       title="콘솔 로그에서 실패 원인만 파싱해서 보여줍니다">
+                        <i class="fas fa-bug"></i> Error Log
+                    </a>
+                    {% endif %}
+                    {% endif %}
+                    {% if run.prod_argocd_sync_requested_at %}
+                    <a href="{{ run.gate.prod_argocd_app_url }}" target="_blank" class="btn btn-sm btn-secondary"
+                       title="Argo CD 콘솔에서 sync 진행 상태를 직접 확인">
+                        <i class="fas fa-ship"></i> Argo CD
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        </div>
+        </div>
+        <!-- /Section 3 -->
+        {% endif %}
+    </div>
+</div>
+
+<!-- Action Buttons -->
+{% if run.can_deploy_now and user.can_write %}
+<div class="card" style="text-align:center;padding:24px">
+    <p style="margin-bottom:12px;font-size:1.1rem"><strong>이미지 빌드 완료!</strong> 검수대상 환경 배포를 실행하시겠습니까?</p>
+    <button type="button" class="btn btn-primary" style="font-size:1rem;padding:12px 32px"
+            onclick="openDeployModal('{% url 'qualitygates:deploy_params' run.pk %}', '{% url 'qualitygates:deploy_trigger' run.pk %}', '{{ csrf_token }}')">
+        <i class="fas fa-rocket"></i> 검수대상 환경 배포 실행
+    </button>
+</div>
+{% endif %}
+
+{% if run.can_prod_deploy and user.can_write %}
+<div class="card" style="text-align:center;padding:24px">
+    <p style="margin-bottom:12px;font-size:1.1rem"><strong>QG 검수 통과!</strong> 검수통과 환경 배포를 실행하시겠습니까?</p>
+    <button type="button" class="btn btn-primary" style="font-size:1rem;padding:12px 32px"
+            onclick="openProdModal('{% url 'qualitygates:prod_deploy_params' run.pk %}', '{% url 'qualitygates:prod_deploy' run.pk %}', '{{ csrf_token }}')">
+        <i class="fas fa-rocket"></i> 검수통과 환경 배포 실행
+    </button>
+</div>
+{% endif %}
+
+{% if run.can_rerun and user.can_write %}
+<div class="card" style="text-align:center;padding:24px">
+    <p style="margin-bottom:12px;color:var(--danger)">
+        {% if run.status == "image_build_failed" %}<strong>이미지 생성 실패.</strong>
+        {% elif run.status == "deploy_failed" %}<strong>검수대상 환경 배포 실패.</strong>
+        {% elif run.status == "prod_deploy_failed" %}<strong>검수통과 환경 배포 실패.</strong>
+        {% else %}<strong>검수 실패.</strong>{% endif %}
+        {% if run.can_rerun_test_only %}
+        테스트만 다시 실행하거나, 처음부터 다시 실행할 수 있습니다.
+        {% elif run.can_rerun_deploy_only %}
+        검수대상 배포만 다시 실행하거나, 처음부터 다시 실행할 수 있습니다.
+        {% elif run.can_rerun_prod_only %}
+        검수통과 배포만 다시 실행하거나, 처음부터 다시 실행할 수 있습니다.
+        {% else %}
+        처음부터 다시 실행하시겠습니까?
+        {% endif %}
+    </p>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        {% if run.can_rerun_test_only %}
+        <form method="post" action="{% url 'qualitygates:rerun_test' run.pk %}" style="display:inline"
+              onsubmit="return confirm('이미지/배포는 그대로 두고 실패한 테스트부터 다시 실행합니다. 계속하시겠습니까?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary" style="font-size:1rem;padding:12px 32px">
+                <i class="fas fa-vial"></i> 테스트만 재실행
+            </button>
+        </form>
+        {% endif %}
+        {% if run.can_rerun_deploy_only %}
+        <button type="button" class="btn btn-primary" style="font-size:1rem;padding:12px 32px"
+                onclick="openDeployModal('{% url 'qualitygates:deploy_params' run.pk %}', '{% url 'qualitygates:deploy_trigger' run.pk %}', '{{ csrf_token }}')">
+            <i class="fas fa-rocket"></i> 검수대상 배포만 재실행
+        </button>
+        {% endif %}
+        {% if run.can_rerun_prod_only %}
+        <button type="button" class="btn btn-primary" style="font-size:1rem;padding:12px 32px"
+                onclick="openProdModal('{% url 'qualitygates:prod_deploy_params' run.pk %}', '{% url 'qualitygates:prod_deploy' run.pk %}', '{{ csrf_token }}')">
+            <i class="fas fa-rocket"></i> 검수통과 배포만 재실행
+        </button>
+        {% endif %}
+        <button type="button" class="btn btn-secondary" style="font-size:1rem;padding:12px 32px"
+                onclick="openRerunModal('{% url 'qualitygates:gate_run_params' run.gate.pk %}', '{% url 'qualitygates:gate_run' run.gate.pk %}', '{{ csrf_token }}')">
+            <i class="fas fa-redo"></i> 처음부터 재실행
+        </button>
+    </div>
+</div>
+{% endif %}
+
+{% if run.is_terminal %}
+<script>
+    var el = document.getElementById('run-status');
+    if (el) { el.removeAttribute('hx-get'); el.removeAttribute('hx-trigger'); }
+</script>
+{% endif %}

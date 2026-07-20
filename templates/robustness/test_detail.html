@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}{{ test.name }} - Reliability Test{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ test.name }}</h1>
+    <div style="display:flex;gap:8px">
+        {% if user.is_admin %}
+        <a href="{% url 'robustness:test_edit' test.pk %}" class="btn btn-secondary">
+            <i class="fas fa-edit"></i> Edit
+        </a>
+        {% endif %}
+        <a href="{% url 'robustness:test_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+    </div>
+</div>
+
+<!-- Test Info -->
+<div class="card">
+    <h2 class="card-title">Reliability Test 정보</h2>
+    <div class="detail-grid">
+        <div class="detail-item">
+            <span class="detail-label">Name</span>
+            <span class="detail-value">{{ test.name }}</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Created</span>
+            <span class="detail-value">{{ test.created_at|date:"Y-m-d H:i" }}</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Schedules</span>
+            <span class="detail-value">{{ schedules|length }}</span>
+        </div>
+    </div>
+    {% if test.description %}
+    <div style="margin-top:12px;color:var(--gray-600)">{{ test.description|linebreaksbr }}</div>
+    {% endif %}
+</div>
+
+{% if user.is_admin %}
+<!-- Add Schedule -->
+<div class="card">
+    <h2 class="card-title">Test Suite 연동 추가</h2>
+    <form method="post" action="{% url 'robustness:schedule_add' test.pk %}" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+        {% csrf_token %}
+        <div class="form-group" style="flex:1;min-width:240px;margin:0">
+            <label for="test_suite_id">Test Suite</label>
+            <select name="test_suite_id" id="test_suite_id" class="form-input" required>
+                <option value="">-- 선택 --</option>
+                {% for suite in available_suites %}
+                <option value="{{ suite.pk }}">{{ suite.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group" style="margin:0;width:160px">
+            <label for="interval_minutes">실행 간격 (분)</label>
+            <input type="number" name="interval_minutes" id="interval_minutes" class="form-input"
+                   value="60" min="1" required>
+        </div>
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-plus"></i> 추가
+        </button>
+    </form>
+    {% if available_suites %}
+    <form method="post" action="{% url 'robustness:schedule_add_all' test.pk %}" style="margin-top:12px;display:flex;gap:8px;align-items:center">
+        {% csrf_token %}
+        <input type="hidden" name="interval_minutes" value="60">
+        <button type="submit" class="btn btn-secondary"
+                onclick="return confirm('미연동 Test Suite {{ available_suites|length }}개를 모두 추가합니다. 계속할까요?')">
+            <i class="fas fa-layer-group"></i> 전체 일괄 추가 ({{ available_suites|length }}개)
+        </button>
+        <span class="text-muted" style="font-size:0.82rem">기본 간격 60분</span>
+    </form>
+    {% else %}
+    <p class="text-muted" style="margin-top:8px;font-size:0.85rem">
+        모든 활성 Test Suite 가 이미 연동되어 있습니다.
+    </p>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Schedules -->
+<div class="card"
+     hx-get="{% url 'robustness:test_detail_fragment' test.pk %}"
+     hx-trigger="every 10s"
+     hx-swap="innerHTML">
+    {% include "robustness/_schedule_table.html" %}
+</div>
+{% endblock %}

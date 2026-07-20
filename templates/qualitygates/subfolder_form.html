@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}{% if mode == 'edit' %}하위폴더 수정{% else %}하위폴더 등록{% endif %} - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>
+        <a href="{% url 'qualitygates:folder_detail' folder.pk %}" style="color:inherit;text-decoration:none">
+            <i class="fas fa-folder" style="color:#f59e0b"></i> {{ folder.name }}
+        </a>
+        <span class="text-muted" style="font-weight:normal;margin:0 6px">/</span>
+        {% if mode == 'edit' %}하위폴더 수정{% else %}하위폴더 등록{% endif %}
+    </h1>
+    <a href="{% if mode == 'edit' %}{% url 'qualitygates:subfolder_detail' subfolder.pk %}{% else %}{% url 'qualitygates:folder_detail' folder.pk %}{% endif %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back
+    </a>
+</div>
+
+{% if errors %}
+<div class="alert alert-error">
+    <ul style="margin:0;padding-left:20px">
+        {% for err in errors %}<li>{{ err }}</li>{% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<div class="card">
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="name">하위폴더명 <span class="text-danger">*</span></label>
+            <input type="text" name="name" id="name" class="form-input" required
+                   value="{% if subfolder %}{{ subfolder.name }}{% else %}{{ form_data.name }}{% endif %}"
+                   placeholder="예: auth">
+        </div>
+        <div class="form-group">
+            <label for="description">설명</label>
+            <input type="text" name="description" id="description" class="form-input"
+                   value="{% if subfolder %}{{ subfolder.description }}{% else %}{{ form_data.description }}{% endif %}"
+                   placeholder="간단한 설명 (선택)">
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i> {% if mode == 'edit' %}수정{% else %}등록{% endif %}
+            </button>
+            <a href="{% if mode == 'edit' %}{% url 'qualitygates:subfolder_detail' subfolder.pk %}{% else %}{% url 'qualitygates:folder_detail' folder.pk %}{% endif %}" class="btn btn-secondary">취소</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}{{ folder.name }} - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-folder" style="color:#f59e0b"></i> {{ folder.name }}</h1>
+    <div style="display:flex;gap:8px">
+        {% if user.is_admin %}
+        <a href="{% url 'qualitygates:subfolder_register' folder.pk %}" class="btn btn-primary">
+            <i class="fas fa-folder-plus"></i> 하위폴더 등록
+        </a>
+        <a href="{% url 'qualitygates:folder_edit' folder.pk %}" class="btn btn-secondary">
+            <i class="fas fa-edit"></i> 인스턴스 설정
+        </a>
+        <a href="{% url 'qualitygates:folder_delete' folder.pk %}" class="btn btn-danger">
+            <i class="fas fa-trash"></i> 삭제
+        </a>
+        {% endif %}
+        <a href="{% url 'qualitygates:folder_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+    </div>
+</div>
+
+{% if folder.description %}
+<div class="card" style="margin-bottom:16px">
+    <div class="text-muted">{{ folder.description }}</div>
+</div>
+{% endif %}
+
+<div class="subfolder-grid">
+    {% for sub in subfolders %}
+    <a class="subfolder-card" href="{% url 'qualitygates:subfolder_detail' sub.pk %}">
+        <div class="subfolder-card-head">
+            <i class="fas fa-folder-open subfolder-icon"></i>
+            <strong>{{ sub.name }}</strong>
+        </div>
+        {% if sub.description %}
+        <div class="subfolder-desc">{{ sub.description }}</div>
+        {% endif %}
+        <div class="subfolder-meta">
+            <span><i class="fas fa-shield-alt"></i> Gate {{ sub.gate_count }}</span>
+        </div>
+    </a>
+    {% empty %}
+    <div class="card" style="grid-column:1/-1;text-align:center;padding:48px">
+        <p class="text-muted">등록된 하위폴더가 없습니다.</p>
+        {% if user.is_admin %}
+        <a href="{% url 'qualitygates:subfolder_register' folder.pk %}" class="btn btn-primary" style="margin-top:12px">
+            <i class="fas fa-folder-plus"></i> 첫 하위폴더 등록
+        </a>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<style>
+.subfolder-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+.subfolder-card {
+    display: block;
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    padding: 20px;
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow 0.15s, transform 0.15s;
+}
+.subfolder-card:hover {
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
+    text-decoration: none;
+}
+.subfolder-card-head {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 1.05rem; margin-bottom: 10px;
+}
+.subfolder-icon { color: #6366f1; font-size: 1.3rem; }
+.subfolder-desc {
+    color: var(--gray-600); font-size: 0.85rem;
+    margin-bottom: 12px; line-height: 1.4;
+}
+.subfolder-meta {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    font-size: 0.8rem; color: var(--gray-500);
+}
+.subfolder-meta i { margin-right: 4px; }
+</style>
+{% endblock %}

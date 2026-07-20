@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}{{ folder.name }} / {{ subfolder.name }} - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>
+        <a href="{% url 'qualitygates:folder_detail' folder.pk %}" style="color:inherit;text-decoration:none">
+            <i class="fas fa-folder" style="color:#f59e0b"></i> {{ folder.name }}
+        </a>
+        <span class="text-muted" style="font-weight:normal;margin:0 6px">/</span>
+        <i class="fas fa-folder-open" style="color:#6366f1"></i> {{ subfolder.name }}
+    </h1>
+    <div style="display:flex;gap:8px">
+        {% if user.is_admin %}
+        <a href="{% url 'qualitygates:gate_register' subfolder.pk %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Gate 등록
+        </a>
+        <a href="{% url 'qualitygates:subfolder_edit' subfolder.pk %}" class="btn btn-secondary">
+            <i class="fas fa-edit"></i> 하위폴더 수정
+        </a>
+        <a href="{% url 'qualitygates:subfolder_delete' subfolder.pk %}" class="btn btn-danger">
+            <i class="fas fa-trash"></i> 삭제
+        </a>
+        {% endif %}
+        <a href="{% url 'qualitygates:folder_detail' folder.pk %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+    </div>
+</div>
+
+{% if subfolder.description %}
+<div class="card" style="margin-bottom:16px">
+    <div class="text-muted">{{ subfolder.description }}</div>
+</div>
+{% endif %}
+
+<div class="card">
+    <h2 class="card-title">Quality Gate 목록</h2>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>검수대상 환경 배포 Job</th>
+                    <th>Test Suites</th>
+                    <th>Last Result</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for gate in gates %}
+                <tr>
+                    <td>
+                        <a href="{% url 'qualitygates:gate_detail' gate.pk %}">
+                            <strong>{{ gate.name }}</strong>
+                        </a>
+                    </td>
+                    <td class="mono" style="font-size:0.8rem">{{ gate.deploy_job_path }}</td>
+                    <td>{{ gate.test_suites_display }}</td>
+                    <td>
+                        {% with run=gate.latest_run %}
+                        {% if run %}
+                            {% if run.status == "qg_passed" %}
+                            <span class="status-badge status-na">{{ run.status_display }}</span>
+                            {% elif run.status == "completed" %}
+                            <span class="status-badge status-pass">PASS</span>
+                            {% elif run.is_failed %}
+                            <span class="status-badge status-fail">FAIL</span>
+                            {% elif run.is_cancelled %}
+                            <span class="status-badge status-na">CANCELLED</span>
+                            {% else %}
+                            <span class="status-badge status-running">{{ run.status_display }}</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                        {% endwith %}
+                    </td>
+                    <td>
+                        <div style="display:inline-flex;gap:4px;align-items:center">
+                            <a href="{% url 'qualitygates:gate_detail' gate.pk %}" class="btn btn-sm btn-secondary">Detail</a>
+                            {% if user.is_admin %}
+                            <a href="{% url 'qualitygates:gate_delete' gate.pk %}" class="btn btn-sm btn-danger">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted">등록된 Quality Gate가 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

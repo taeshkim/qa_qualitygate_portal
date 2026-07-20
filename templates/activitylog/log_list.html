@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Activity Log{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* 로그 페이지 내부는 한 가지 폰트 크기/굵기로 통일 */
+    .log-table th,
+    .log-table td {
+        font-size: 0.875rem;
+        font-weight: 400;
+        line-height: 1.4;
+    }
+    .log-table th {
+        font-weight: 600;
+        text-transform: none;
+        letter-spacing: 0;
+        color: var(--gray-600);
+    }
+    .log-table td {
+        color: var(--gray-800, #1f2937);
+    }
+    .log-table .status-badge {
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    .log-pagination {
+        font-size: 0.875rem;
+        color: var(--gray-600);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-clipboard-list"></i> Activity Log</h1>
+</div>
+
+<div class="card">
+    <form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:16px">
+        <div class="form-group" style="margin:0;min-width:180px">
+            <label>대상</label>
+            <select name="type" class="form-input">
+                <option value="">전체</option>
+                {% for val, label in target_types %}
+                <option value="{{ val }}" {% if selected_type == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group" style="margin:0;min-width:140px">
+            <label>액션</label>
+            <select name="action" class="form-input">
+                <option value="">전체</option>
+                {% for val, label in actions %}
+                <option value="{{ val }}" {% if selected_action == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group" style="margin:0;flex:1;min-width:200px">
+            <label>이름 검색</label>
+            <input type="text" name="q" value="{{ q }}" class="form-input" placeholder="대상 이름으로 검색">
+        </div>
+        <div style="display:flex;gap:6px">
+            <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> 조회</button>
+            <a href="{% url 'activitylog:list' %}" class="btn btn-secondary">초기화</a>
+        </div>
+    </form>
+
+    <div class="table-wrapper">
+        <table class="table log-table">
+            <thead>
+                <tr>
+                    <th>시각</th>
+                    <th>사용자</th>
+                    <th>액션</th>
+                    <th>대상</th>
+                    <th>이름</th>
+                    <th>비고</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in page %}
+                <tr>
+                    <td style="white-space:nowrap">{{ log.created_at|date:"Y-m-d H:i:s" }}</td>
+                    <td>{{ log.user.username|default:"-" }}</td>
+                    <td style="white-space:nowrap">
+                        <span class="status-badge
+                            {% if log.action == 'create' %}status-success
+                            {% elif log.action == 'delete' or log.action == 'login_failed' %}status-danger
+                            {% elif log.action == 'run' or log.action == 'login' %}status-primary
+                            {% elif log.action == 'cancel' or log.action == 'logout' %}status-warning
+                            {% else %}status-na{% endif %}"
+                              style="margin-left:-10px">
+                            {{ log.get_action_display }}
+                        </span>
+                    </td>
+                    <td>{{ log.get_target_type_display }}</td>
+                    <td>{{ log.target_name|default:"-" }}</td>
+                    <td>{{ log.detail|default:"" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted" style="padding:24px">
+                        기록이 없습니다.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if page.has_other_pages %}
+    <div style="display:flex;justify-content:center;gap:6px;margin-top:16px">
+        {% if page.has_previous %}
+        <a class="btn btn-secondary btn-sm" href="?{% if selected_type %}type={{ selected_type }}&{% endif %}{% if selected_action %}action={{ selected_action }}&{% endif %}{% if q %}q={{ q }}&{% endif %}page={{ page.previous_page_number }}">
+            <i class="fas fa-chevron-left"></i>
+        </a>
+        {% endif %}
+        <span class="log-pagination" style="align-self:center">
+            {{ page.number }} / {{ page.paginator.num_pages }}
+        </span>
+        {% if page.has_next %}
+        <a class="btn btn-secondary btn-sm" href="?{% if selected_type %}type={{ selected_type }}&{% endif %}{% if selected_action %}action={{ selected_action }}&{% endif %}{% if q %}q={{ q }}&{% endif %}page={{ page.next_page_number }}">
+            <i class="fas fa-chevron-right"></i>
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

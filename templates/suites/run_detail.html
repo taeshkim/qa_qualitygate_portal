@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}{{ suite_run.suite.name }} - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Suite Run: {{ suite_run.suite.name }}</h1>
+    <div style="display:flex;gap:8px;align-items:center">
+        <a href="{% url 'suites:suite_detail' suite_run.suite.pk %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Suite
+        </a>
+    </div>
+</div>
+
+<div id="run-status"
+     {% if suite_run.status != "completed" %}
+     hx-get="{% url 'suites:run_status_fragment' suite_run.pk %}"
+     hx-trigger="every 5s"
+     hx-swap="innerHTML"
+     {% endif %}>
+    {% include "suites/_run_status.html" %}
+</div>
+
+<script>
+/* Suite Run Detail — 이 Run 을 글로벌 watcher 에 등록 (페이지 이동해도 추적 유지).
+   알림 발사는 qg_notify.js 의 공통 watcher 가 담당. htmx 는 UI 프래그먼트 갱신만. */
+(function () {
+    const RUN_ID = "{{ suite_run.pk }}";
+    const RUN_STATUS_URL = "{% url 'suites:run_status_fragment' suite_run.pk %}";
+
+    document.addEventListener('DOMContentLoaded', () => {
+        QGNotify.updateToggleBtn();
+        const meta = document.getElementById('run-meta');
+        if (!meta) return;
+        const status = meta.dataset.runStatus || '';
+        const terminal = (status === 'completed' || status === 'failed' || status === 'cancelled');
+        if (terminal) {
+            QGNotify.unwatch('suite-run-' + RUN_ID);
+            return;
+        }
+        QGNotify.watch('suite-run-' + RUN_ID, {
+            kind: 'suite_run',
+            statusUrl: RUN_STATUS_URL,
+            runUrl: window.location.pathname,
+            label: meta.dataset.runName || '',
+            initialStatus: status,
+        });
+    });
+
+    // htmx 로 프래그먼트 갱신 시 터미널 도달 감지하고 watcher 정리
+    document.body.addEventListener('htmx:afterSwap', (e) => {
+        if (!e.target || e.target.id !== 'run-status') return;
+        const meta = document.getElementById('run-meta');
+        if (!meta) return;
+        const s = meta.dataset.runStatus || '';
+        if (s === 'completed' || s === 'failed' || s === 'cancelled') {
+            QGNotify.unwatch('suite-run-' + RUN_ID);
+        }
+    });
+})();
+</script>
+{% endblock %}

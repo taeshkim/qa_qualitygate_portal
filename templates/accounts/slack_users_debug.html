@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Slack 사용자 자동 매칭 - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>관리자</h1>
+</div>
+
+{% include "accounts/_admin_tabs.html" %}
+
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <h2 class="card-title" style="margin:0">
+            <i class="fab fa-slack"></i> Slack 사용자 자동 매칭
+            <span class="text-muted" style="font-size:0.85rem;font-weight:400">({{ total_count }}명 인덱싱됨)</span>
+        </h2>
+        <form method="post" style="margin:0">
+            {% csrf_token %}
+            <button type="submit" name="refresh" value="1" class="btn btn-sm btn-secondary">
+                <i class="fas fa-sync"></i> Slack 에서 다시 조회
+            </button>
+        </form>
+    </div>
+
+    {% if last_error %}
+    <div class="alert alert-error" style="margin-top:12px">
+        <strong><i class="fas fa-exclamation-triangle"></i> Slack API 호출 실패</strong>
+        <div style="margin-top:4px">{{ last_error }}</div>
+    </div>
+    {% endif %}
+
+    <p class="text-muted" style="font-size:0.85rem;margin-top:10px;line-height:1.6">
+        Slack <code>users.list</code> API 로 워크스페이스 멤버 정보를 조회해서 owner 이름 → User ID 자동 매칭. 1시간 LocMem 캐시.<br>
+        에러 노티의 멘션이 동작하려면 <code>SLACK_BOT_TOKEN</code> 에 <strong><code>users:read</code> scope</strong> 가 있어야 하고,
+        scope 추가 후 반드시 <strong>Reinstall to Workspace</strong> 를 1회 클릭해야 토큰에 반영됩니다 (scope 추가만으로는 부족).
+    </p>
+
+    <hr style="margin:14px 0;border:none;border-top:1px solid var(--gray-700)">
+
+    <h3 style="font-size:1rem;margin-bottom:8px">이름 매칭 테스트</h3>
+    <form method="get" style="display:flex;gap:6px;flex-wrap:wrap">
+        <input type="text" name="q" value="{{ q }}" placeholder="이름 입력 (예: 이동훈)"
+               class="form-input" style="flex:1;min-width:260px;padding:6px 10px;font-size:0.92rem">
+        <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-search"></i> 매칭 확인</button>
+        {% if q %}
+        <a href="{% url 'accounts:slack_users_debug' %}" class="btn btn-sm btn-secondary">초기화</a>
+        {% endif %}
+    </form>
+
+    {% if lookup %}
+    <div style="margin-top:12px;padding:12px;background:rgba(255,255,255,0.04);border-radius:8px">
+        <div style="font-size:0.92rem;margin-bottom:6px">
+            <strong>"{{ lookup.query }}"</strong> 매칭 결과
+        </div>
+        {% if lookup.uid %}
+        <div style="color:#36a64f">
+            <i class="fas fa-check-circle"></i> 매칭 성공 →
+            <code style="font-size:0.95rem">{{ lookup.uid }}</code>
+        </div>
+        <p class="text-muted" style="font-size:0.8rem;margin-top:6px">
+            메시지에 <code>&lt;@{{ lookup.uid }}&gt;</code> 가 들어가 실제 멘션 + 알림으로 동작합니다.
+        </p>
+        {% else %}
+        <div style="color:#e01e5a">
+            <i class="fas fa-times-circle"></i> 매칭 실패 — 이 이름과 정확히 일치하는 Slack 멤버를 찾지 못했습니다.
+        </div>
+        <p class="text-muted" style="font-size:0.8rem;margin-top:6px">
+            메시지에는 <code>@{{ lookup.query }}</code> 평문으로 노출됩니다 (실제 알림은 가지 않음).
+        </p>
+        {% if lookup.candidates %}
+        <div style="margin-top:10px">
+            <strong style="font-size:0.85rem">부분 일치 후보 ({{ lookup.candidates|length }}건):</strong>
+            <ul style="margin-top:4px;font-family:monospace;font-size:0.85rem;line-height:1.6">
+                {% for c in lookup.candidates %}
+                <li>{{ c }}</li>
+                {% endfor %}
+            </ul>
+            <p class="text-muted" style="font-size:0.78rem;margin-top:6px">
+                위 이름들이 Slack 워크스페이스에 실제 있는 표시명/실명입니다.
+                CSV 의 owner 컬럼 표기와 정확히 일치해야 매칭됩니다.
+                Slack 프로필의 <strong>표시명(Display name)</strong> 또는 <strong>실명(Full name)</strong> 을 CSV 표기로 맞추거나,
+                반대로 CSV 의 owner 컬럼을 Slack 표시명으로 일괄 변경하세요.
+            </p>
+        </div>
+        {% else %}
+        <p class="text-muted" style="font-size:0.78rem;margin-top:6px">
+            "{{ lookup.query }}" 가 부분 포함된 이름조차 없습니다.
+            워크스페이스 멤버 수가 0명이면 scope 또는 재설치 문제, 그게 아니면 표기 차이를 확인하세요.
+        </p>
+        {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if sample %}
+    <details style="margin-top:16px">
+        <summary style="cursor:pointer;font-weight:600;font-size:0.92rem">
+            인덱싱된 전체 이름 ({{ total_count }}명){% if sample_truncated %} — 가나다순 200개만 표시{% endif %}
+        </summary>
+        <div style="margin-top:8px;font-family:monospace;font-size:0.82rem;max-height:480px;overflow-y:auto;background:rgba(0,0,0,0.25);padding:10px;border-radius:6px;line-height:1.5">
+            {% for name in sample %}
+            <div>{{ name }}</div>
+            {% endfor %}
+        </div>
+        <p class="text-muted" style="font-size:0.78rem;margin-top:6px">
+            한 사용자가 여러 행으로 보일 수 있습니다 (username / 실명 / 표시명 + normalized 변형이 각각 키로 등록됨).
+        </p>
+    </details>
+    {% endif %}
+
+    {% if total_count == 0 and not last_error %}
+    <div class="alert alert-warning" style="margin-top:16px">
+        <strong>인덱싱된 사용자 0명</strong> —
+        "Slack 에서 다시 조회" 버튼을 한 번 클릭해서 호출을 강제해보세요.
+        그래도 0명이면 토큰/scope/재설치를 점검하세요.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

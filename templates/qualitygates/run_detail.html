@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}{{ run.gate.name }} #{{ run.seq_no }} - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>
+        {{ run.gate.name }}
+        <span class="text-muted" style="font-weight:500;font-size:0.85em">#{{ run.seq_no }}</span>
+    </h1>
+    <div style="display:flex;gap:8px;align-items:center">
+        <a href="{% url 'qualitygates:gate_detail' run.gate.pk %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+    </div>
+</div>
+
+{% with newer=run.newer_run_for_gate %}
+{% if newer %}
+<div class="alert alert-warning" style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div>
+        <i class="fas fa-circle-exclamation"></i>
+        지금 보고 있는 화면은 <strong>#{{ run.seq_no }}</strong> Run 입니다 — 이 게이트의 더 최신 Run
+        <strong>#{{ newer.seq_no }}</strong> 가 있습니다 ({{ newer.status_display }}, {{ newer.created_at|date:"m-d H:i" }}).
+    </div>
+    <a href="{% url 'qualitygates:run_detail' newer.pk %}" class="btn btn-primary btn-sm">
+        <i class="fas fa-arrow-right"></i> 최신 Run 으로 이동
+    </a>
+</div>
+{% endif %}
+{% endwith %}
+
+<div id="run-status"
+     {% if not run.is_terminal %}
+     hx-get="{% url 'qualitygates:run_status_fragment' run.pk %}"
+     hx-trigger="every 5s"
+     hx-swap="innerHTML"
+     {% endif %}>
+    {% include "qualitygates/_run_status.html" %}
+</div>
+
+<!-- Params Modal (shared shell; opened by _run_status.html buttons) -->
+<div id="params-modal" class="qg-modal-backdrop" style="display:none">
+    <div class="qg-modal">
+        <h3 id="params-modal-title" style="margin-bottom:12px">파라미터 입력</h3>
+        <div id="params-modal-body">
+            <p class="text-muted">Jenkins Job 파라미터 확인 중...</p>
+        </div>
+        <form id="params-modal-form" method="post" action="" style="display:none">
+            <input type="hidden" name="csrfmiddlewaretoken" value="">
+            <div id="params-modal-params"></div>
+            <div class="form-actions" style="margin-top:16px">
+                <button type="submit" class="btn btn-primary" id="params-modal-submit">
+                    <i class="fas fa-play"></i> 실행
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="closeParamsModal()">취소</button>
+            </div>
+        </form>
+        <div id="params-modal-error" class="alert alert-error" style="display:none"></div>
+        <div id="params-modal-close-wrap" class="form-actions" style="display:none;margin-top:16px">
+            <button type="button" class="btn btn-secondary" onclick="closeParamsModal()">닫기</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.qg-modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 1000; display: flex; align-items: center; justify-content: center;
+}
+.qg-modal {
+    background: #fff; border-radius: 8px; padding: 24px;
+    width: 90%; max-width: 520px; max-height: 90vh; overflow-y: auto;
+}
+.qg-param-row { margin-bottom: 12px; }
+.qg-param-row label { display:block; font-weight: 600; margin-bottom: 4px; font-size: 0.9rem; }
+.qg-param-row small { color: var(--gray-600); }
+</style>
+
+<script>
+function _renderParam(p) {
+    const name = p.name || '';
+    const defval = p.default == null ? '' : String(p.default);
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const type = (p.type || '').toLowerCase();
+    const isGit = type.includes('git');
+    const hasChoices = Array.isArray(p.choices) && p.choices.length > 0;
+    let input;
+    if (type.includes('boolean')) {
+        const checked = defval === 'true' || defval === 'True' ? 'checked' : '';
+        input = `<input type="hidden" name="param_${esc(name)}" value="false">` +
+                `<input type="checkbox" name="param_${esc(name)}" value="true" ${checked}>`;
+    } else if (hasChoices) {
+        input = `<select name="param_${esc(name)}" class="form-input">` +
+                p.choices.map(c => `<option value="${esc(c)}" ${c===defval?'selected':''}>${esc(c)}</option>`).join('') +
+                `</select>`;
+    } else if (type.includes('text')) {
+        input = `<textarea name="param_${esc(name)}" class="form-input" rows="3">${esc(defval)}</textarea>`;
+    } else {
+        input = `<input type="text" name="param_${esc(name)}" class="form-input" value="${esc(defval)}">`;
+    }
+    const warn = (isGit && !hasChoices)
+        ? `<div style="margin-top:4px;padding:6px 8px;background:#fff8e1;border-left:3px solid #f59e0b;font-size:0.8rem;color:#92400e"><i class="fas fa-exclamation-triangle"></i> Git Parameter 입니다. 기본값(<code>${esc(defval)}</code>)이 실제 저장소에 없는 브랜치/태그일 수 있으니 실존하는 이름으로 직접 입력하세요.</div>`
+        : '';
+    return `<div class="qg-param-row"><label>${esc(name)} <small>(${esc(p.type||'')})</small></label>${input}${warn}</div>`;
+}
+
+function openParamsModal(opts) {
+    // opts: { paramsUrl, submitUrl, csrfToken, title, submitLabel, submitIcon, confirmText }
+    const modal = document.getElementById('params-modal');
+    const titleEl = document.getElementById('params-modal-title');
+    const body = document.getElementById('params-modal-body');
+    const form = document.getElementById('params-modal-form');
+    const paramsEl = document.getElementById('params-modal-params');
+    const errEl = document.getElementById('params-modal-error');
+    const closeWrap = document.getElementById('params-modal-close-wrap');
+    const submitBtn = document.getElementById('params-modal-submit');
+
+    titleEl.textContent = opts.title || '파라미터 입력';
+    submitBtn.innerHTML = `<i class="fas ${opts.submitIcon || 'fa-play'}"></i> ${opts.submitLabel || '실행'}`;
+    form.action = opts.submitUrl;
+    form.querySelector('input[name="csrfmiddlewaretoken"]').value = opts.csrfToken;
+
+    modal.style.display = 'flex';
+    body.style.display = 'block';
+    body.innerHTML = '<p class="text-muted">Jenkins Job 파라미터 확인 중...</p>';
+    form.style.display = 'none';
+    errEl.style.display = 'none';
+    closeWrap.style.display = 'none';
+    paramsEl.innerHTML = '';
+
+    fetch(opts.paramsUrl, {credentials: 'same-origin'})
+        .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+        .then(({ok, data}) => {
+            if (!ok || !data.ok) {
+                errEl.textContent = 'Jenkins 연결 실패: ' + (data.error || 'unknown');
+                errEl.style.display = 'block';
+                body.style.display = 'none';
+                closeWrap.style.display = 'flex';
+                return;
+            }
+            body.style.display = 'none';
+            const params = data.parameters || [];
+            if (params.length === 0) {
+                paramsEl.innerHTML = `<p>${opts.confirmText || '실행하시겠습니까?'}</p>`;
+            } else {
+                paramsEl.innerHTML = '<p class="text-muted" style="margin-bottom:12px">이 Job은 파라미터 빌드입니다. 값을 입력하세요.</p>' +
+                    params.map(p => _renderParam(p)).join('');
+            }
+            form.style.display = 'block';
+        })
+        .catch(err => {
+            errEl.textContent = '요청 실패: ' + err;
+            errEl.style.display = 'block';
+            body.style.display = 'none';
+            closeWrap.style.display = 'flex';
+        });
+}
+
+function openDeployModal(paramsUrl, submitUrl, csrfToken) {
+    openParamsModal({
+        paramsUrl, submitUrl, csrfToken,
+        title: '검수대상 환경 배포',
+        submitLabel: '실행',
+        submitIcon: 'fa-rocket',
+        confirmText: '검수대상 환경 배포를 실행합니다. 계속할까요?',
+    });
+}
+
+function openProdModal(paramsUrl, submitUrl, csrfToken) {
+    openParamsModal({
+        paramsUrl, submitUrl, csrfToken,
+        title: '검수통과 환경 배포',
+        submitLabel: '실행',
+        submitIcon: 'fa-rocket',
+        confirmText: '검수통과 환경 배포를 실행합니다. 계속할까요?',
+    });
+}
+
+function openRerunModal(paramsUrl, submitUrl, csrfToken) {
+    openParamsModal({
+        paramsUrl, submitUrl, csrfToken,
+        title: '검수 재실행',
+        submitLabel: '재실행',
+        submitIcon: 'fa-redo',
+        confirmText: '검수대상 환경 배포부터 다시 실행합니다. 계속할까요?',
+    });
+}
+
+function closeParamsModal() {
+    document.getElementById('params-modal').style.display = 'none';
+}
+
+/* Run Detail — 이 Run 을 글로벌 watcher 에 등록 (페이지 이동해도 계속 추적).
+   알림 발사는 qg_notify.js 의 공통 watcher 가 담당. htmx 는 UI 프래그먼트 갱신만. */
+(function () {
+    const RUN_ID = "{{ run.pk }}";
+    const RUN_STATUS_URL = "{% url 'qualitygates:run_status_fragment' run.pk %}";
+
+    document.addEventListener('DOMContentLoaded', () => {
+        QGNotify.updateToggleBtn();
+        const meta = document.getElementById('run-meta');
+        if (!meta) return;
+        const status = meta.dataset.runStatus || '';
+        const terminal = meta.dataset.runTerminal === '1';
+        if (terminal) {
+            // 이미 끝난 Run 이면 혹시 남아있는 watcher 정리
+            QGNotify.unwatch('qg-run-' + RUN_ID);
+            return;
+        }
+        QGNotify.watch('qg-run-' + RUN_ID, {
+            kind: 'qg_run',
+            statusUrl: RUN_STATUS_URL,
+            runUrl: window.location.pathname,
+            label: meta.dataset.runGate || '',
+            initialStatus: status,
+        });
+    });
+
+    // htmx 로 프래그먼트 갱신 시 터미널에 도달했는지 확인하고 watcher 정리
+    document.body.addEventListener('htmx:afterSwap', (e) => {
+        if (!e.target || e.target.id !== 'run-status') return;
+        const meta = document.getElementById('run-meta');
+        if (meta && meta.dataset.runTerminal === '1') {
+            QGNotify.unwatch('qg-run-' + RUN_ID);
+        }
+    });
+})();
+</script>
+{% endblock %}

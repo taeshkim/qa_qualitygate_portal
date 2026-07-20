@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}사용자 관리 - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>관리자</h1>
+</div>
+
+{% include "accounts/_admin_tabs.html" %}
+
+<!-- 승인 대기 -->
+{% if pending_users %}
+<div class="card" style="border-left:4px solid var(--warning)">
+    <h2 class="card-title">
+        <i class="fas fa-clock" style="color:var(--warning)"></i>
+        승인 대기 ({{ pending_users|length }}명)
+    </h2>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>이름</th>
+                    <th>이메일</th>
+                    <th>가입 신청일</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in pending_users %}
+                <tr>
+                    <td><strong>{{ u.username }}</strong></td>
+                    <td>{{ u.first_name|default:"-" }}</td>
+                    <td>{{ u.email|default:"-" }}</td>
+                    <td>{{ u.date_joined|date:"Y-m-d H:i" }}</td>
+                    <td>
+                        <div style="display:flex;gap:4px;align-items:center">
+                        <form method="post" action="{% url 'accounts:user_toggle_active' u.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-primary">
+                                <i class="fas fa-user-check"></i> 승인
+                            </button>
+                        </form>
+                        <form method="post" action="{% url 'accounts:user_delete' u.pk %}"
+                              onsubmit="return confirm('{{ u.username }} 가입 신청을 거절(삭제)합니다. 계속할까요?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-danger">
+                                <i class="fas fa-times"></i> 거절
+                            </button>
+                        </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- 활성 사용자 -->
+<div class="card">
+    <h2 class="card-title">전체 사용자 ({{ active_users|length }}명)</h2>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>이름</th>
+                    <th>이메일</th>
+                    <th>역할</th>
+                    <th>가입일</th>
+                    <th>마지막 로그인</th>
+                    <th style="min-width:200px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in active_users %}
+                <tr>
+                    <td><strong>{{ u.username }}</strong></td>
+                    <td>{{ u.first_name|default:"-" }}</td>
+                    <td>{{ u.email|default:"-" }}</td>
+                    <td>
+                        <form method="post" action="{% url 'accounts:user_update' u.pk %}"
+                              style="display:flex;gap:4px;align-items:center">
+                            {% csrf_token %}
+                            <select name="role" class="form-input" style="width:auto;padding:4px 8px;font-size:0.82rem">
+                                {% for value, label in role_choices %}
+                                <option value="{{ value }}" {% if u.role == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                            <input type="hidden" name="is_active" value="on">
+                            <button type="submit" class="btn btn-sm btn-secondary" title="저장">
+                                <i class="fas fa-save"></i>
+                            </button>
+                        </form>
+                    </td>
+                    <td>{{ u.date_joined|date:"Y-m-d H:i" }}</td>
+                    <td>
+                        {% if u.last_login %}
+                        {{ u.last_login|date:"Y-m-d H:i" }}
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+                        {% if u != request.user %}
+                        <form method="post" action="{% url 'accounts:user_toggle_active' u.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-secondary" title="비활성화">
+                                <i class="fas fa-user-slash"></i>
+                            </button>
+                        </form>
+                        <form method="post" action="{% url 'accounts:user_delete' u.pk %}"
+                              onsubmit="return confirm('{{ u.username }} 계정을 삭제합니다. 이 작업은 되돌릴 수 없습니다. 계속할까요?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-danger" title="삭제">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                        {% else %}
+                        <span class="text-muted" style="font-size:0.8rem">본인</span>
+                        {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted">등록된 사용자가 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

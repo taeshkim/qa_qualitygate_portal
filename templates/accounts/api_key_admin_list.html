@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}API Keys (전체) - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>관리자</h1>
+</div>
+
+{% include "accounts/_admin_tabs.html" %}
+
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <h2 class="card-title" style="margin-bottom:0">전체 API 키 ({{ keys|length }}개)</h2>
+        <a href="{% url 'accounts:api_key_create' %}" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus"></i> 새 키 발급
+        </a>
+    </div>
+    <p style="color:var(--text-muted);font-size:0.88rem;margin-top:6px;margin-bottom:14px">
+        모든 사용자의 발급 API 키를 조회/회수합니다. <b>새 키 발급</b> 은 본인(관리자) 키를 발급합니다. 평문은 어떤 화면에서도 다시 볼 수 없습니다.
+    </p>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>사용자</th>
+                    <th>이름</th>
+                    <th>Prefix</th>
+                    <th>스코프</th>
+                    <th>만료</th>
+                    <th>마지막 사용</th>
+                    <th>발급일</th>
+                    <th>상태</th>
+                    <th style="min-width:120px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for k in keys %}
+                <tr>
+                    <td>
+                        <strong>{{ k.user.username }}</strong>
+                        <div style="font-size:0.78rem;color:var(--text-muted)">{{ k.user.get_role_display }}</div>
+                    </td>
+                    <td>{{ k.name }}</td>
+                    <td><code>qgp_{{ k.key_prefix }}_…</code></td>
+                    <td>
+                        {% for s in k.scopes %}
+                            <span class="status-badge" style="background:var(--gray-200);color:var(--text);margin-right:4px">{{ s }}</span>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% if k.expires_at %}
+                            {{ k.expires_at|date:"Y-m-d" }}
+                        {% else %}
+                            <span class="text-muted">무제한</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if k.last_used_at %}
+                            {{ k.last_used_at|date:"Y-m-d H:i" }}
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ k.created_at|date:"Y-m-d H:i" }}</td>
+                    <td>
+                        {% if k.is_revoked %}
+                            <span class="status-badge status-fail" title="회수: {{ k.revoked_at|date:'Y-m-d H:i' }}">회수됨</span>
+                        {% elif k.is_expired %}
+                            <span class="status-badge status-fail">만료됨</span>
+                        {% else %}
+                            <span class="status-badge status-pass">활성</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not k.is_revoked %}
+                        <form method="post" action="{% url 'accounts:api_key_admin_revoke' k.pk %}"
+                              onsubmit="return confirm('{{ k.user.username }} 의 키 \'{{ k.name }}\' 을(를) 회수합니다. 계속할까요?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-danger">
+                                <i class="fas fa-ban"></i> 회수
+                            </button>
+                        </form>
+                        {% else %}
+                            <span class="text-muted" style="font-size:0.8rem">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9" class="text-center text-muted">등록된 API 키가 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+# Django Core
+Django>=4.2,<5.0
+djangorestframework>=3.14,<4.0
+django-filter>=23.0
+
+# Environment
+python-dotenv>=1.0
+
+# Security
+django-cors-headers>=4.0
+
+# Google Sheets 동기화 (담당자 마스터) — Drive files.export(text/csv) 를
+# 서비스 계정으로 호출. requests 는 google-auth 의 표준 전송(AuthorizedSession).
+google-auth>=2.23
+requests>=2.28
+
+# Async Task Queue (production)
+celery>=5.3
+redis>=5.0
+django-celery-beat>=2.5

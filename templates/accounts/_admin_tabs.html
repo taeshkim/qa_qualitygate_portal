@@ -1,0 +1,27 @@
+{% comment %}어드민 영역 공통 탭 헤더. context 의 `admin_active_tab` 으로 활성 탭 결정.{% endcomment %}
+<nav class="admin-tabs">
+    <a href="{% url 'accounts:user_list' %}"
+       class="{% if admin_active_tab == 'users' %}active{% endif %}">
+        <i class="fas fa-users"></i> 사용자 관리
+    </a>
+    <a href="{% url 'accounts:notification_settings' %}"
+       class="{% if admin_active_tab == 'notifications' %}active{% endif %}">
+        <i class="fab fa-slack"></i> Slack 알림
+    </a>
+    <a href="{% url 'accounts:api_key_admin_list' %}"
+       class="{% if admin_active_tab == 'api_keys' %}active{% endif %}">
+        <i class="fas fa-key"></i> API Keys
+    </a>
+    <a href="{% url 'accounts:api_owner_list' %}"
+       class="{% if admin_active_tab == 'api_owners' %}active{% endif %}">
+        <i class="fas fa-user-tie"></i> 담당자 관리
+    </a>
+    <a href="{% url 'accounts:api_host_list' %}"
+       class="{% if admin_active_tab == 'api_hosts' %}active{% endif %}">
+        <i class="fas fa-server"></i> 호스트 매핑
+    </a>
+    <a href="{% url 'accounts:slack_users_debug' %}"
+       class="{% if admin_active_tab == 'slack_users' %}active{% endif %}">
+        <i class="fab fa-slack"></i> Slack 사용자
+    </a>
+</nav>

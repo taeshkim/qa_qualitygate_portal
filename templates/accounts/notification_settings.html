@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Slack 알림 설정 - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>관리자</h1>
+</div>
+
+{% include "accounts/_admin_tabs.html" %}
+
+<form method="post" action="">
+    {% csrf_token %}
+
+    <!-- 토큰 / 채널 -->
+    <div class="card">
+        <h2 class="card-title">
+            <i class="fab fa-slack"></i> 연결 설정
+        </h2>
+
+        <div style="margin-bottom:16px">
+            <label style="font-weight:500;display:block;margin-bottom:6px">Bot 토큰</label>
+            <div style="display:flex;align-items:center;gap:8px">
+                {% if bot_token_present %}
+                    <span class="status-badge status-pass">
+                        <i class="fas fa-check"></i> .env 의 SLACK_BOT_TOKEN 감지됨
+                    </span>
+                {% else %}
+                    <span class="status-badge status-fail">
+                        <i class="fas fa-exclamation-triangle"></i> .env 의 SLACK_BOT_TOKEN 미설정
+                    </span>
+                {% endif %}
+                <small style="color:var(--text-muted)">
+                    토큰은 보안상 .env 파일에서만 관리됩니다 (변경 후 서버 재기동 필요).
+                </small>
+            </div>
+        </div>
+
+        <div style="margin-bottom:16px">
+            <label for="default_channel" style="font-weight:500;display:block;margin-bottom:6px">
+                기본 채널
+            </label>
+            <input type="text" id="default_channel" name="default_channel"
+                   value="{{ settings_obj.default_channel }}"
+                   placeholder="#qg-alerts (또는 채널 ID C0XXXXXXXX)"
+                   style="width:100%;max-width:420px;padding:8px 10px;border:1px solid var(--border);border-radius:6px"/>
+            <small style="display:block;margin-top:4px;color:var(--text-muted)">
+                비워두면 .env 의 <code>SLACK_DEFAULT_CHANNEL</code>
+                {% if env_default_channel %}(<code>{{ env_default_channel }}</code>){% else %}(미설정){% endif %}
+                값을 사용합니다. 봇이 해당 채널에 초대되어 있어야 합니다.
+            </small>
+        </div>
+
+        <div style="margin-bottom:8px">
+            <label style="display:inline-flex;align-items:center;gap:8px;font-weight:500;cursor:pointer">
+                <input type="checkbox" name="enabled" {% if settings_obj.enabled %}checked{% endif %}/>
+                Slack 알림 사용
+            </label>
+            <small style="display:block;margin-top:4px;color:var(--text-muted)">
+                꺼두면 아래 이벤트 토글과 무관하게 모든 알림이 발송되지 않습니다.
+            </small>
+        </div>
+    </div>
+
+    <!-- 이벤트 토글 -->
+    <div class="card">
+        <h2 class="card-title">
+            <i class="fas fa-bell"></i> 이벤트별 알림
+        </h2>
+        <p style="color:var(--text-muted);margin:-4px 0 12px">
+            각 파이프라인 상태 전이 시점에 발송할 알림을 선택하세요. 위쪽 'Slack 알림 사용' 이 꺼져 있으면 모든 항목이 무시됩니다.
+        </p>
+
+        <nav class="event-tabs" role="tablist">
+            {% for tab_name, _ in event_tabs %}
+            <button type="button"
+                    class="event-tab-btn{% if forloop.first %} active{% endif %}"
+                    data-event-tab="tab-{{ forloop.counter0 }}"
+                    role="tab">
+                {{ tab_name }}
+            </button>
+            {% endfor %}
+        </nav>
+
+        {% for tab_name, groups in event_tabs %}
+        <div class="event-tab-panel{% if forloop.first %} active{% endif %}"
+             data-event-panel="tab-{{ forloop.counter0 }}"
+             role="tabpanel">
+            {% for group_name, items in groups %}
+            <div style="margin-bottom:18px">
+                <h3 style="font-size:0.95rem;font-weight:600;margin-bottom:8px;color:var(--text)">
+                    {{ group_name }}
+                </h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px 16px">
+                    {% for code, label in items %}
+                    <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer">
+                        <input type="checkbox" name="notify_{{ code }}"
+                               {% if code == 'run_started'         and settings_obj.notify_run_started %}checked{% endif %}
+                               {% if code == 'run_completed'       and settings_obj.notify_run_completed %}checked{% endif %}
+                               {% if code == 'run_failed'          and settings_obj.notify_run_failed %}checked{% endif %}
+                               {% if code == 'run_cancelled'       and settings_obj.notify_run_cancelled %}checked{% endif %}
+                               {% if code == 'image_started'       and settings_obj.notify_image_started %}checked{% endif %}
+                               {% if code == 'image_completed'     and settings_obj.notify_image_completed %}checked{% endif %}
+                               {% if code == 'image_failed'        and settings_obj.notify_image_failed %}checked{% endif %}
+                               {% if code == 'deploy_started'      and settings_obj.notify_deploy_started %}checked{% endif %}
+                               {% if code == 'deploy_completed'    and settings_obj.notify_deploy_completed %}checked{% endif %}
+                               {% if code == 'deploy_failed'       and settings_obj.notify_deploy_failed %}checked{% endif %}
+                               {% if code == 'prod_started'        and settings_obj.notify_prod_started %}checked{% endif %}
+                               {% if code == 'prod_completed'      and settings_obj.notify_prod_completed %}checked{% endif %}
+                               {% if code == 'prod_failed'         and settings_obj.notify_prod_failed %}checked{% endif %}
+                               {% if code == 'test_suite_started'  and settings_obj.notify_test_suite_started %}checked{% endif %}
+                               {% if code == 'test_suite_passed'   and settings_obj.notify_test_suite_passed %}checked{% endif %}
+                               {% if code == 'test_suite_failed'   and settings_obj.notify_test_suite_failed %}checked{% endif %}
+                               {% if code == 'suite_run_started'   and settings_obj.notify_suite_run_started %}checked{% endif %}
+                               {% if code == 'suite_run_passed'    and settings_obj.notify_suite_run_passed %}checked{% endif %}
+                               {% if code == 'suite_run_failed'    and settings_obj.notify_suite_run_failed %}checked{% endif %}
+                               {% if code == 'argocd_failed'       and settings_obj.notify_argocd_failed %}checked{% endif %}
+                        />
+                        <span>{{ label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center;margin-top:16px">
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save"></i> 저장
+        </button>
+        <span style="color:var(--text-muted);font-size:0.85rem">
+            마지막 변경: {{ settings_obj.updated_at|date:"Y-m-d H:i" }}
+        </span>
+    </div>
+</form>
+
+<!-- 테스트 메시지 -->
+<div class="card" style="margin-top:24px">
+    <h2 class="card-title">
+        <i class="fas fa-paper-plane"></i> 테스트 메시지 전송
+    </h2>
+    <p style="color:var(--text-muted);margin:-4px 0 12px">
+        설정한 채널로 즉시 테스트 메시지를 전송합니다. 토글 상태와 무관하게 발송됩니다.
+    </p>
+    <form method="post" action="{% url 'accounts:notification_settings_test' %}"
+          style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        {% csrf_token %}
+        <input type="text" name="channel"
+               placeholder="채널 (비워두면 기본 채널 사용)"
+               style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;min-width:280px"/>
+        <button type="submit" class="btn btn-secondary">
+            <i class="fas fa-paper-plane"></i> 전송
+        </button>
+    </form>
+</div>
+
+<script>
+(function () {
+    const buttons = document.querySelectorAll('.event-tab-btn');
+    const panels = document.querySelectorAll('.event-tab-panel');
+    if (!buttons.length) return;
+    buttons.forEach(btn => {
+        btn.addEventListener('click', function () {
+            const target = btn.getAttribute('data-event-tab');
+            buttons.forEach(b => b.classList.toggle('active', b === btn));
+            panels.forEach(p => {
+                p.classList.toggle('active', p.getAttribute('data-event-panel') === target);
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

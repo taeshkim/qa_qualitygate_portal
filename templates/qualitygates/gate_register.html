@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}Register Quality Gate{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Quality Gate 등록 <small class="text-muted" style="font-size:0.85rem;font-weight:normal">· {{ folder.name }} / {{ subfolder.name }}</small></h1>
+    <a href="{% url 'qualitygates:subfolder_detail' subfolder.pk %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back
+    </a>
+</div>
+
+<div class="card">
+    {% if errors %}
+    {% for error in errors %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="alert" style="background:#eff6ff;border-left:4px solid #3b82f6;color:#1e3a8a;margin-bottom:16px">
+        <strong><i class="fas fa-info-circle"></i> Jenkins 자격증명</strong>은
+        인스턴스 <strong>{{ folder.name }}</strong> 에 저장된 값을 사용합니다.
+        (Dev: {{ folder.dev_jenkins_url|default:"미설정" }}{% if folder.prod_jenkins_url %} / Prod: {{ folder.prod_jenkins_url }}{% endif %})
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <h3 style="margin-bottom:12px;color:var(--gray-600)">Gate 정보</h3>
+        <div class="form-group">
+            <label for="name">Gate 이름</label>
+            <input type="text" name="name" id="name" class="form-input"
+                   placeholder="예: JK Dev Quality Gate" value="{{ request.POST.name }}" required>
+        </div>
+        <div class="form-group">
+            <label>게이트 배포 구성 타입</label>
+            <div style="display:flex;gap:20px;align-items:center;margin-top:4px">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                    <input type="radio" name="gate_type" value="dev_stg"
+                           {% if selected_gate_type != "stg_prd" %}checked{% endif %}>
+                    Dev → Stg
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                    <input type="radio" name="gate_type" value="stg_prd"
+                           {% if selected_gate_type == "stg_prd" %}checked{% endif %}>
+                    Stg → Prd
+                </label>
+            </div>
+            <small class="text-muted">선택한 타입에 따라 아래 인증키/Argo CD 토큰 환경 기본값이 자동으로 맞춰집니다.</small>
+        </div>
+
+        <h3 style="margin:24px 0 12px;color:var(--gray-600)">검수대상 환경 배포 Job</h3>
+        <div style="border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;padding:14px 16px;background:#fafafa">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;color:var(--gray-600);font-weight:600;font-size:0.88rem">
+                <i class="fas fa-hammer" style="color:#6366f1"></i> Jenkins
+            </div>
+            <div class="form-group">
+                <label>인증키</label>
+                <div id="deploy_credential_display" class="form-input"
+                     style="max-width:240px;background:#f3f4f6;color:var(--gray-700);cursor:not-allowed;display:flex;align-items:center;gap:6px">
+                    <i class="fas fa-lock" style="color:#9ca3af;font-size:0.8rem"></i>
+                    <span data-deploy-cred-label>Dev API 키</span>
+                </div>
+                <small class="text-muted">게이트 배포 구성 타입에 따라 자동 지정됩니다.</small>
+            </div>
+            <div class="form-group">
+                <label for="image_job_path">이미지 생성 Job <span class="text-muted" style="font-weight:normal">(선택)</span></label>
+                <input type="text" name="image_job_path" id="image_job_path" class="form-input"
+                       placeholder="비워두면 검수대상 환경 배포부터 실행"
+                       value="{{ request.POST.image_job_path }}">
+                <small class="text-muted">Jenkins Job URL 또는 <code>폴더/잡이름</code> 형식의 경로.</small>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+                <label for="deploy_job_path">배포 Job</label>
+                <input type="text" name="deploy_job_path" id="deploy_job_path" class="form-input"
+                       placeholder="https://jenkins.example.com/job/폴더/job/잡이름/  또는  폴더/잡이름"
+                       value="{{ request.POST.deploy_job_path }}" required>
+                <small class="text-muted">Jenkins Job URL 또는 순수 경로 모두 가능.</small>
+            </div>
+        </div>
+        <div style="border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;padding:14px 16px;background:#fafafa;margin-top:12px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;color:var(--gray-600);font-weight:600;font-size:0.88rem">
+                <i class="fas fa-cloud" style="color:#0ea5e9"></i> Argo CD <span class="text-muted" style="font-weight:normal;font-size:0.85rem">(선택)</span>
+            </div>
+            <div class="form-group">
+                <label>토큰 환경</label>
+                <div class="form-input"
+                     style="max-width:240px;background:#f3f4f6;color:var(--gray-700);cursor:not-allowed;display:flex;align-items:center;gap:6px">
+                    <i class="fas fa-lock" style="color:#9ca3af;font-size:0.8rem"></i>
+                    <span data-argo-deploy-label>{% if selected_gate_type == "stg_prd" %}Stg{% else %}Dev{% endif %}</span>
+                </div>
+                <small class="text-muted">게이트 배포 구성 타입에 따라 자동 지정됩니다.</small>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+                <label for="deploy_argocd_app_url">App URL</label>
+                <input type="text" name="deploy_argocd_app_url" id="deploy_argocd_app_url" class="form-input"
+                       placeholder="https://argocd.example.com/applications/my-app"
+                       value="{{ request.POST.deploy_argocd_app_url }}">
+                <small class="text-muted">배포 Job 성공 후 이 Argo CD App 이 Synced + Healthy 가 될 때까지 대기한 뒤 다음 단계로 진행합니다.</small>
+            </div>
+        </div>
+
+        <h3 style="margin:24px 0 12px;color:var(--gray-600)">검수통과 환경 배포 Job <span class="text-muted" style="font-weight:normal;font-size:0.85rem">(선택)</span></h3>
+        <div style="border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;padding:14px 16px;background:#fafafa">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;color:var(--gray-600);font-weight:600;font-size:0.88rem">
+                <i class="fas fa-hammer" style="color:#6366f1"></i> Jenkins
+            </div>
+            <div class="form-group">
+                <label>인증키</label>
+                <div id="prod_credential_display" class="form-input"
+                     style="max-width:240px;background:#f3f4f6;color:var(--gray-700);cursor:not-allowed;display:flex;align-items:center;gap:6px">
+                    <i class="fas fa-lock" style="color:#9ca3af;font-size:0.8rem"></i>
+                    <span data-prod-cred-label>{% if selected_gate_type == "stg_prd" %}Prod API 키{% else %}Dev API 키{% endif %}</span>
+                </div>
+                <small class="text-muted">게이트 배포 구성 타입에 따라 자동 지정됩니다.</small>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+                <label for="prod_job_path">배포 Job</label>
+                <input type="text" name="prod_job_path" id="prod_job_path" class="form-input"
+                       placeholder="비워두면 검수통과 환경 배포 없음"
+                       value="{{ request.POST.prod_job_path }}">
+                <small class="text-muted">Jenkins Job URL 또는 순수 경로.</small>
+            </div>
+        </div>
+        <div style="border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;padding:14px 16px;background:#fafafa;margin-top:12px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;color:var(--gray-600);font-weight:600;font-size:0.88rem">
+                <i class="fas fa-cloud" style="color:#0ea5e9"></i> Argo CD <span class="text-muted" style="font-weight:normal;font-size:0.85rem">(선택)</span>
+            </div>
+            <div class="form-group">
+                <label>토큰 환경</label>
+                <div class="form-input"
+                     style="max-width:240px;background:#f3f4f6;color:var(--gray-700);cursor:not-allowed;display:flex;align-items:center;gap:6px">
+                    <i class="fas fa-lock" style="color:#9ca3af;font-size:0.8rem"></i>
+                    <span data-argo-prod-label>{% if selected_gate_type == "stg_prd" %}Prd{% else %}Stg{% endif %}</span>
+                </div>
+                <small class="text-muted">게이트 배포 구성 타입에 따라 자동 지정됩니다.</small>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+                <label for="prod_argocd_app_url">App URL</label>
+                <input type="text" name="prod_argocd_app_url" id="prod_argocd_app_url" class="form-input"
+                       placeholder="https://argocd.example.com/applications/my-app"
+                       value="{{ request.POST.prod_argocd_app_url }}">
+                <small class="text-muted">검수통과 배포 Job 성공 후 이 Argo CD App 이 Synced + Healthy 가 될 때까지 대기한 뒤 완료 처리됩니다.</small>
+            </div>
+        </div>
+
+        <h3 style="margin:20px 0 12px;color:var(--gray-600)">테스트 Suite (다중 선택, 순서대로 실행)</h3>
+        <div class="form-group">
+            <label>Test Suite 선택</label>
+            <div class="select-list">
+                {% for suite in suites %}
+                <div class="select-item" onclick="toggleSelect(this)">
+                    <input type="hidden" name="" value="{{ suite.pk }}">
+                    <span class="select-item-name">{{ suite.name }}</span>
+                    <span class="select-item-meta">({{ suite.job_count }}개 Job)</span>
+                    <span class="select-item-check"><i class="fas fa-check"></i></span>
+                </div>
+                {% endfor %}
+            </div>
+            <small class="text-muted">클릭하여 선택 · 선택한 순서대로 실행됩니다.</small>
+            <script>
+            function toggleSelect(el) {
+                const hidden = el.querySelector('input[type="hidden"]');
+                if (el.classList.toggle('selected')) {
+                    hidden.name = 'test_suite_ids';
+                } else {
+                    hidden.name = '';
+                }
+            }
+            </script>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-check"></i> 등록 (연결 테스트 포함)
+            </button>
+        </div>
+    </form>
+</div>
+<script>
+(function() {
+    const GATE_TYPE_DEFAULTS = {
+        dev_stg: { deploy_cred: 'Dev API 키', prod_cred: 'Dev API 키', argo_deploy: 'Dev', argo_prod: 'Stg' },
+        stg_prd: { deploy_cred: 'Dev API 키', prod_cred: 'Prod API 키', argo_deploy: 'Stg', argo_prod: 'Prd' },
+    };
+    function setAll(selector, text) {
+        document.querySelectorAll(selector).forEach(function(el) { el.textContent = text; });
+    }
+    document.querySelectorAll('input[name="gate_type"]').forEach(function(r) {
+        r.addEventListener('change', function(e) {
+            const defs = GATE_TYPE_DEFAULTS[e.target.value];
+            if (!defs) return;
+            setAll('[data-deploy-cred-label]', defs.deploy_cred);
+            setAll('[data-prod-cred-label]', defs.prod_cred);
+            setAll('[data-argo-deploy-label]', defs.argo_deploy);
+            setAll('[data-argo-prod-label]', defs.argo_prod);
+        });
+    });
+})();
+</script>
+{% endblock %}

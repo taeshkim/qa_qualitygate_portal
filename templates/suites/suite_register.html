@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Register Suite - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Test Suite 등록</h1>
+    <a href="{% url 'suites:suite_list' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back
+    </a>
+</div>
+
+<div class="card">
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label>Jenkins 소스</label>
+            <div style="display:flex;gap:16px;margin-top:4px">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                    <input type="radio" name="source_type" value="default"
+                           {% if source_type != "external" %}checked{% endif %}>
+                    전용 Jenkins
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                    <input type="radio" name="source_type" value="external"
+                           {% if source_type == "external" %}checked{% endif %}>
+                    외부 Jenkins
+                </label>
+            </div>
+            <small class="text-muted">별도 구성된 외부 Jenkins에서 가져오려면 "외부 Jenkins"를 선택하세요.</small>
+        </div>
+
+        <fieldset id="external-fields" style="border:1px solid var(--border,#ddd);padding:12px;border-radius:6px;margin-bottom:16px">
+            <legend style="padding:0 6px;font-size:0.9rem;color:var(--text-muted,#666)">외부 Jenkins 접속 정보</legend>
+            <div class="form-group">
+                <label for="jenkins_base_url">Jenkins URL</label>
+                <input type="text" name="jenkins_base_url" id="jenkins_base_url" class="form-input"
+                       placeholder="예: https://jenkins.example.com"
+                       value="{{ form.jenkins_base_url|default:'' }}">
+                <small class="text-muted">외부 Jenkins 서버의 베이스 URL (뒤에 /job/... 제외)</small>
+            </div>
+            <div class="form-group">
+                <label for="jenkins_user">Jenkins User ID</label>
+                <input type="text" name="jenkins_user" id="jenkins_user" class="form-input"
+                       placeholder="Jenkins 계정 ID"
+                       value="{{ form.jenkins_user|default:'' }}">
+            </div>
+            <div class="form-group">
+                <label for="jenkins_api_token">API Token</label>
+                <input type="password" name="jenkins_api_token" id="jenkins_api_token" class="form-input"
+                       placeholder="{% if has_external_default_token %}default 자격증명 사용 — 다른 token 을 쓸 때만 입력{% else %}Jenkins API Token{% endif %}"
+                       value=""
+                       autocomplete="new-password">
+                {% if has_external_default_token %}
+                <small class="text-muted">
+                    Jenkins 자격증명 페이지의 default token 이 사용됩니다. 다른 token 을 쓸 때만 입력하세요.
+                </small>
+                {% endif %}
+            </div>
+        </fieldset>
+
+        <div class="form-group">
+            <label for="jenkins_folder_path">Jenkins 폴더 경로 (풀 경로)</label>
+            <input type="text" name="jenkins_folder_path" id="jenkins_folder_path" class="form-input"
+                   placeholder="예: 100_jk_regression_test_group/PC/dev_jk_regression_api_test"
+                   value="{{ form.jenkins_folder_path|default:'' }}" required>
+            <small class="text-muted">Jenkins Full project name 또는 폴더 URL. /job/... 형태의 URL도 자동 변환됩니다.</small>
+        </div>
+        <div class="form-group">
+            <label for="name">Suite 이름 (선택)</label>
+            <input type="text" name="name" id="name" class="form-input"
+                   placeholder="비워두면 Jenkins 폴더명 사용"
+                   value="{{ form.name|default:'' }}">
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-search"></i> 탐색 및 등록
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+(function() {
+    var radios = document.querySelectorAll('input[name="source_type"]');
+    var fieldset = document.getElementById('external-fields');
+    var urlInput = document.getElementById('jenkins_base_url');
+    var userInput = document.getElementById('jenkins_user');
+    var tokenInput = document.getElementById('jenkins_api_token');
+
+    function sync() {
+        var val = document.querySelector('input[name="source_type"]:checked').value;
+        var external = (val === 'external');
+        fieldset.style.display = external ? '' : 'none';
+        urlInput.required = external;
+        userInput.required = external;
+        tokenInput.required = external;
+    }
+    radios.forEach(function(r){ r.addEventListener('change', sync); });
+    sync();
+})();
+</script>
+{% endblock %}

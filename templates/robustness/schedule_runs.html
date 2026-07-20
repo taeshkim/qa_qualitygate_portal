@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}{{ schedule.test_suite.name }} - 실행 이력{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ schedule.robustness_test.name }} / {{ schedule.test_suite.name }}</h1>
+    <a href="{% url 'robustness:test_detail' schedule.robustness_test_id %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back
+    </a>
+</div>
+
+<div class="card">
+    <h2 class="card-title">현재 세션 통계</h2>
+    <div class="detail-grid">
+        <div class="detail-item">
+            <span class="detail-label">세션 시작</span>
+            <span class="detail-value">{{ schedule.started_at|date:"Y-m-d H:i:s"|default:"-" }}</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">실행 간격</span>
+            <span class="detail-value">{{ schedule.interval_minutes }}분</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">총 잡 실행 수</span>
+            <span class="detail-value">
+                {{ schedule.total_executions }}
+                <span class="text-muted" style="font-size:0.8rem">(트리거 {{ schedule.trigger_count }}회)</span>
+            </span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">성공 / 실패</span>
+            <span class="detail-value">
+                <span class="text-success">{{ schedule.success_count }}</span>
+                /
+                <span class="text-danger">{{ schedule.failure_count }}</span>
+            </span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">성공률</span>
+            <span class="detail-value">
+                {% if schedule.total_executions %}{{ schedule.success_rate }}%{% else %}-{% endif %}
+            </span>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h2 class="card-title">실행 이력 (최근 100건)</h2>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Triggered</th>
+                    <th>Status</th>
+                    <th>Suite Run</th>
+                    <th>Pass/Fail</th>
+                    <th>Completed</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in runs %}
+                <tr>
+                    <td>{{ run.triggered_at|date:"m/d H:i:s" }}</td>
+                    <td>
+                        {% if run.status == "success" %}
+                        <span class="status-badge status-pass">Success</span>
+                        {% elif run.status == "failure" %}
+                        <span class="status-badge status-fail">Failure</span>
+                        {% elif run.status == "aborted" %}
+                        <span class="status-badge status-na">Aborted</span>
+                        {% elif run.status == "running" %}
+                        <span class="status-badge status-running">Running</span>
+                        {% else %}
+                        <span class="status-badge status-na">{{ run.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if run.suite_run %}
+                        <a href="{% url 'suites:run_detail' run.suite_run.pk %}">View</a>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if run.suite_run %}
+                        <span class="text-success">{{ run.suite_run.passed_jobs }}</span>
+                        /
+                        <span class="text-danger">{{ run.suite_run.failed_jobs }}</span>
+                        / {{ run.suite_run.total_jobs }}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>{{ run.completed_at|date:"m/d H:i:s"|default:"-" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted">실행 이력이 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

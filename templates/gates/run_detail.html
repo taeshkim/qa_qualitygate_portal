@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Gate Run Detail - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Gate 실행 상세</h1>
+    <a href="{% url 'gates:run_list' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back
+    </a>
+</div>
+
+<!-- Basic Info -->
+<div class="card">
+    <h2 class="card-title">기본 정보</h2>
+    <div class="detail-grid">
+        <div class="detail-item">
+            <span class="detail-label">Service</span>
+            <span class="detail-value">{{ run.service.name }} ({{ run.service.code }})</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Environment</span>
+            <span class="detail-value">
+                <span class="env-badge env-{{ run.environment.name|lower }}">{{ run.environment.name }}</span>
+            </span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Version</span>
+            <span class="detail-value">{{ run.version|default:"-" }}</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Commit</span>
+            <span class="detail-value mono">{{ run.commit_sha|default:"-"|truncatechars:12 }}</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Branch</span>
+            <span class="detail-value">{{ run.branch|default:"-" }}</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Duration</span>
+            <span class="detail-value">{{ run.duration_seconds|default:"-" }}s</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Triggered By</span>
+            <span class="detail-value">{{ run.get_triggered_by_display }}</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Time</span>
+            <span class="detail-value">{{ run.created_at|date:"Y-m-d H:i:s" }}</span>
+        </div>
+    </div>
+</div>
+
+<!-- Result -->
+<div class="card">
+    <h2 class="card-title">판정 결과</h2>
+    <div class="result-summary">
+        <div class="result-main">
+            {% if run.result == "PASS" %}
+            <span class="result-large status-pass">PASS</span>
+            {% elif run.result == "FAIL" %}
+            <span class="result-large status-fail">FAIL</span>
+            {% else %}
+            <span class="result-large status-running">{{ run.result }}</span>
+            {% endif %}
+        </div>
+        <div class="result-details">
+            <div>API Test: <strong>{{ run.api_test_result|default:"N/A" }}</strong></div>
+            <div>E2E PASS Rate: <strong>{{ run.e2e_test_result|default:"N/A" }}{% if run.e2e_test_result %}%{% endif %}</strong></div>
+        </div>
+    </div>
+
+    {% if run.jenkins_build_url %}
+    <div class="detail-links">
+        <a href="{{ run.jenkins_build_url }}" target="_blank" class="btn btn-secondary">
+            <i class="fas fa-external-link-alt"></i> Jenkins Build
+        </a>
+        {% if run.report_url %}
+        <a href="{{ run.report_url }}" target="_blank" class="btn btn-secondary">
+            <i class="fas fa-file-alt"></i> Test Report
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Failures -->
+{% if failures %}
+<div class="card">
+    <h2 class="card-title">실패 항목 ({{ failures|length }})</h2>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Test Name</th>
+                    <th>Type</th>
+                    <th>Error Message</th>
+                    <th>Category</th>
+                    <th>Categorized By</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in failures %}
+                <tr>
+                    <td>{{ f.test_name }}</td>
+                    <td>{{ f.get_failure_type_display }}</td>
+                    <td class="error-msg">{{ f.error_message|truncatechars:100 }}</td>
+                    <td id="triage-{{ f.pk }}">
+                        {% if f.category %}
+                        <span class="category-badge category-{{ f.category }}">
+                            {{ f.get_category_display }}
+                        </span>
+                        {% endif %}
+                        {% if user.can_write %}
+                        <select class="triage-select"
+                                hx-patch="{% url 'gates:triage_failure' run.pk f.pk %}"
+                                hx-headers='{"X-CSRFToken": "{{ csrf_token }}", "Content-Type": "application/json"}'
+                                hx-vals='js:JSON.stringify({"category": event.target.value})'
+                                hx-target="#triage-{{ f.pk }}"
+                                hx-swap="innerHTML">
+                            <option value="">-- Triage --</option>
+                            <option value="bug" {% if f.category == "bug" %}selected{% endif %}>Bug</option>
+                            <option value="environment" {% if f.category == "environment" %}selected{% endif %}>Environment</option>
+                            <option value="flaky" {% if f.category == "flaky" %}selected{% endif %}>Flaky</option>
+                            <option value="configuration" {% if f.category == "configuration" %}selected{% endif %}>Configuration</option>
+                        </select>
+                        {% endif %}
+                    </td>
+                    <td>{{ f.categorized_by|default:"-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

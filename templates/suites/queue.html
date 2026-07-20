@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Queue - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Execution Queue</h1>
+    <div style="display:flex;gap:8px">
+        {% if queue_data and user.can_write %}
+        <form method="post" action="{% url 'suites:queue_stop_all' %}"
+              onsubmit="return confirm('현재 실행 중인 모든 Reliability 스케줄과 Suite Run / Jenkins 빌드를 강제 중단합니다. 계속할까요?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">
+                <i class="fas fa-stop-circle"></i> Stop All
+            </button>
+        </form>
+        {% endif %}
+        <a href="{% url 'suites:suite_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Suites
+        </a>
+    </div>
+</div>
+
+{% if queue_data %}
+{% for item in queue_data %}
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h2 class="card-title" style="margin-bottom:0">
+            <a href="{% url 'suites:run_detail' item.run.pk %}">{{ item.run.suite.name }}</a>
+        </h2>
+        <div style="display:flex;gap:8px;font-size:0.85rem">
+            <span class="status-badge status-pass" title="Done">{{ item.done_count }}</span>
+            <span class="status-badge status-running" title="Running">{{ item.running_count }}</span>
+            <span class="status-badge status-na" title="Pending">{{ item.pending_count }}</span>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Job</th>
+                    <th>Status</th>
+                    <th>Stage</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for jr in item.job_runs %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ jr.job.job_name }}</td>
+                    <td>
+                        {% if jr.status == "success" %}
+                        <span class="status-badge status-pass">SUCCESS</span>
+                        {% elif jr.status == "failure" %}
+                        <span class="status-badge status-fail">FAILURE</span>
+                        {% elif jr.status == "running" %}
+                        <span class="status-badge status-running">Running</span>
+                        {% elif jr.status == "queued" %}
+                        <span class="status-badge status-running">Queued</span>
+                        {% else %}
+                        <span class="status-badge status-na">Waiting</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if jr.stages_json %}
+                        <div class="stage-pipeline">
+                            {% for stage in jr.stages_json %}
+                            <span class="stage-dot stage-{{ stage.status|lower }}"
+                                  title="{{ forloop.counter }}. {{ stage.name }}"></span>
+                            {% endfor %}
+                        </div>
+                        <div class="stage-current">
+                            <span class="stage-count">{{ jr.stages_current_number }}/{{ jr.stages_total }}</span>
+                            {% if jr.current_stage %}{{ jr.current_stage }}{% endif %}
+                        </div>
+                        {% elif jr.status == "pending" %}
+                        <span class="text-muted">Waiting for slot...</span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="margin-top:8px;font-size:0.8rem;color:var(--gray-500)">
+        Started {{ item.run.started_at|date:"m/d H:i:s" }}
+        by {{ item.run.triggered_by|default:"system" }}
+    </div>
+</div>
+{% endfor %}
+
+{% else %}
+<div class="card">
+    <p class="text-center text-muted">대기 중인 실행이 없습니다.</p>
+</div>
+{% endif %}
+{% endblock %}

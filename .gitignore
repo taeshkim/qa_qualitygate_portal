@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3-journal
+media/
+
+# Environment
+.env
+.env.local
+.env.dev
+.env.staging
+.env.production
+
+# Service account / credential keys (절대 커밋 금지)
+secrets/
+*-sa.json
+service-account*.json
+application_default_credentials.json
+
+# Claude Code 설정·서브에이전트를 저장소에 함께 추적
+# (전역 ~/.config/git/ignore 의 .claude/settings.local.json 무시를 이 저장소에서만 해제)
+!.claude/settings.local.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Static files (collected)
+staticfiles/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*

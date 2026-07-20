@@ -1,0 +1,332 @@
+﻿레포,카테고리,영역,Method,Endpoint,FE 담당자,BE 담당자,매핑 앱,사용 횟수,step_ids
+JK PC,회원가입 / 인증,로그인 / 회원가입 / 인증,POST,/Join/IDCheck,이동균,이동균,auth-api,3,"err_ps_register_duplicate_id, ps_check_id, ps_register_duplicate"
+JK PC,회원가입 / 인증,로그인 / 회원가입 / 인증,POST,/Certify/PhoneEmailCertifyResult,이동균,이동균,auth-api,1,ps_confirm_cert_code
+JK PC,회원가입 / 인증,JK 메인 (PC/Mobile),POST,/Recruit/OnPass/OnPassApply,장호철,"이동훈, 윤복영",jk-jobs-fe-web,1,ps_instant_apply_registered
+JK PC,회원가입 / 인증,로그인 / 회원가입 / 인증,POST,/Join/M_Regist,이동균,이동균,auth-api,1,ps_register
+JK PC,회원가입 / 인증,로그인 / 회원가입 / 인증,GET,/Join/M_Regist?OEM_No=1&Org_OEM_No=1,이동균,이동균,auth-api,1,ps_register_page
+JK PC,회원가입 / 인증,로그인 / 회원가입 / 인증,POST,/Certify/PhoneEmailCertifyNumCall,이동균,이동균,auth-api,1,ps_send_cert_code
+JK PC,로그인 / 로그아웃,로그인 / 회원가입 / 인증,POST,/Login/Login.asp,이동균,이동균,auth-api,8,"cp_login, err_cp_login_wrong_pwd, err_ps_login_invalid_id, err_ps_login_wrong_pwd, ps_login, ps_login_invalid_id, ps_login_registered, ps_login_wrong_pwd"
+JK PC,로그인 / 로그아웃,로그인 / 회원가입 / 인증,GET,/Login/Logout.asp,이동균,이동균,auth-api,2,"cp_logout, ps_logout"
+JK PC,마이페이지 / 계정 설정,JK 비즈센터 / 공고 검색,GET,/Corp/Calendar/Month,문승연,문승연,jk-bizcenter-fe-web,1,acct_cp_calendar
+JK PC,마이페이지 / 계정 설정,JK 비즈센터 / 공고 검색,GET,/Corp/Info/Company,문승연,문승연,jk-bizcenter-fe-web,1,acct_cp_info_company
+JK PC,마이페이지 / 계정 설정,JK 비즈센터 / 공고 검색,GET,/Corp/Info/Member,문승연,문승연,jk-bizcenter-fe-web,1,acct_cp_info_member
+JK PC,마이페이지 / 계정 설정,JK 비즈센터 / 공고 검색,GET,/Corp/Offer/Terms,문승연,문승연,jk-bizcenter-fe-web,1,acct_cp_offer_terms
+JK PC,마이페이지 / 계정 설정,JK 메인 (PC/Mobile),GET,/User/Info/Alert,장호철,"이동훈, 윤복영",jk-jobs-fe-web,1,acct_ps_alert_setting_page
+JK PC,마이페이지 / 계정 설정,JK 메인 (PC/Mobile),GET,/User/Info/PwdChg,장호철,"이동훈, 윤복영",jk-jobs-fe-web,2,"acct_ps_change_pwd_page, ps_change_pwd_page"
+JK PC,마이페이지 / 계정 설정,JK 메인 (PC/Mobile),GET,/User/MyPage,장호철,"이동훈, 윤복영",jk-jobs-fe-web,3,"acct_ps_mypage, err_ps_mypage_unauthorized, ps_mypage"
+JK PC,마이페이지 / 계정 설정,JK 메인 (PC/Mobile),GET,/User/Info,장호철,"이동훈, 윤복영",jk-jobs-fe-web,1,acct_ps_user_info_page
+JK PC,이력서 관리,JK 이력서,GET,/User/ResumeMng,장호철,"이동훈, 윤복영",jk-resume-fe,4,"err_ps_resume_unauthorized, ps_resume_mng, ps_resume_mng_unlock, ps_resume_unauthorized"
+JK PC,이력서 관리,JK 이력서,POST,/User/Resume/Save,장호철,"이동훈, 윤복영",jk-resume-fe,2,"ps_resume_create, ps_resume_edit"
+JK PC,이력서 관리,JK 이력서,POST,/User/ResumeMng/ResumeDelete,장호철,"이동훈, 윤복영",jk-resume-fe,1,ps_resume_delete
+JK PC,이력서 관리,JK 이력서,GET,/User/Resume/Edit,장호철,"이동훈, 윤복영",jk-resume-fe,1,ps_resume_edit_page
+JK PC,검색 / 상세,JK 비즈센터 / 공고 검색,GET,/Recruit/GI_Detail/${created_gno},문승연,문승연,search-front,1,ps_job_detail
+JK PC,검색 / 상세,JK 비즈센터 / 공고 검색,GET,/recruit/joblist,문승연,문승연,search-front,2,"ps_search_jobs, ps_search_jobs_local"
+JK PC,스크랩,JK 비즈센터 / 공고 검색,GET,/Corp/Person/Scrap,문승연,문승연,jk-bizcenter-fe-web,1,cp_person_scrap
+JK PC,스크랩,JK 메인 (PC/Mobile),GET,/User/Scrap,장호철,"이동훈, 윤복영",jk-jobs-fe-web,2,"err_ps_scrap_unauthorized, ps_scrap_list"
+JK PC,스크랩,JK 메인 (PC/Mobile),GET,/Recruit/GI_Scrap_Ajax,장호철,"이동훈, 윤복영",jk-jobs-fe-web,2,"ps_scrap_add, ps_scrap_delete"
+JK PC,지원 / 즉시지원,JK 메인 (PC/Mobile),GET,/User/ApplyMng,장호철,"이동훈, 윤복영",jk-jobs-fe-web,2,"err_ps_apply_mng_unauthorized, ps_apply_mng_page"
+JK PC,지원 / 즉시지원,JK 메인 (PC/Mobile),POST,/User/ApplyMng/CancelApply,장호철,"이동훈, 윤복영",jk-jobs-fe-web,1,ps_cancel_apply
+JK PC,지원 / 즉시지원,JK 메인 (PC/Mobile),POST,/User/ApplyMng/DelApply,장호철,"이동훈, 윤복영",jk-jobs-fe-web,1,ps_delete_apply
+JK PC,지원 / 즉시지원,JK 메인 (PC/Mobile),GET,/Recruit/OnPass,장호철,"이동훈, 윤복영",jk-jobs-fe-web,1,ps_onpass_page
+JK PC,탈퇴,JK 메인 (PC/Mobile),POST,/help/leave,장호철,"이동훈, 윤복영",jk-jobs-fe-web,1,ps_leave
+JK PC,탈퇴,JK 메인 (PC/Mobile),GET,/help/leave,장호철,"이동훈, 윤복영",jk-jobs-fe-web,1,ps_leave_page
+JK PC,공고 (등록/수정/마감/삭제/결제),JK 비즈센터 / 공고 검색,GET,/Yocruit/Mng/GI_List_ApplyClose,문승연,문승연,jk-bizcenter-fe-web,1,cp_jobpost_close
+JK PC,공고 (등록/수정/마감/삭제/결제),JK 비즈센터 / 공고 검색,POST,/corp/recruit/doRegist,문승연,문승연,jk-bizcenter-fe-web,1,cp_jobpost_create
+JK PC,공고 (등록/수정/마감/삭제/결제),JK 비즈센터 / 공고 검색,GET,/Yocruit/Mng/GI_List_Del,문승연,문승연,jk-bizcenter-fe-web,1,cp_jobpost_delete
+JK PC,공고 (등록/수정/마감/삭제/결제),JK 비즈센터 / 공고 검색,POST,/corp/recruit/edit,문승연,문승연,jk-bizcenter-fe-web,1,cp_jobpost_edit
+JK PC,공고 (등록/수정/마감/삭제/결제),JK 비즈센터 / 공고 검색,GET,/Corp/Recruit/Edit/${created_gno},문승연,문승연,jk-bizcenter-fe-web,1,cp_jobpost_edit_page
+JK PC,공고 (등록/수정/마감/삭제/결제),JK 비즈센터 / 공고 검색,GET,/Corp/Recruit/Regist,문승연,문승연,jk-bizcenter-fe-web,1,cp_jobpost_regist_page
+JK PC,기업: 지원자 관리,JK 비즈센터 / 공고 검색,GET,/Corp/Applicant/List,문승연,문승연,jk-bizcenter-fe-web,2,"cp_applicant_detail, cp_applicant_list"
+JK PC,기타,JK 비즈센터 / 공고 검색,GET,/Corp/Person/Find,문승연,문승연,jk-bizcenter-fe-web,1,cp_person_find
+JK Mobile,회원가입 / 인증,로그인 / 회원가입 / 인증,GET,/Text/M_Certify_Check_JSON.asp,이동균,이동균,auth-api,1,certify_check
+JK Mobile,회원가입 / 인증,로그인 / 회원가입 / 인증,POST,/Text/M_Certify_Create_JSON.asp,이동균,이동균,auth-api,1,certify_create
+JK Mobile,회원가입 / 인증,로그인 / 회원가입 / 인증,POST,/TextUser/Mail/JoinMail,이동균,이동균,auth-api,1,join_mail
+JK Mobile,회원가입 / 인증,로그인 / 회원가입 / 인증,GET,/text_user/m_regist.asp,이동균,이동균,auth-api,2,"ps_register_page, register_page"
+JK Mobile,회원가입 / 인증,로그인 / 회원가입 / 인증,POST,/Text/M_Regist_Ok_JSON.asp,이동균,이동균,auth-api,1,register_submit
+JK Mobile,회원가입 / 인증,로그인 / 회원가입 / 인증,GET,/text_user/m_regist.asp?TS_XML=5,이동균,이동균,auth-api,1,url_register_page_android
+JK Mobile,회원가입 / 인증,로그인 / 회원가입 / 인증,GET,/text_user/m_regist.asp?uitype=4,이동균,이동균,auth-api,1,url_register_page_ios
+JK Mobile,로그인 / 로그아웃,JK App API,POST,/Public/Api/App/Login,신동현,신동현,auth-api,3,"app_login, leave_verify_login_fail, register_login"
+JK Mobile,로그인 / 로그아웃,JK App API,POST,/Public/Api/App/Logout,신동현,신동현,auth-api,1,app_logout
+JK Mobile,로그인 / 로그아웃,로그인 / 회원가입 / 인증,GET,/Login/Login.asp?Login_Mem_Type=M&tabStat=0,이동균,이동균,auth-api,1,ps_login_page
+JK Mobile,마이페이지 / 계정 설정,JK 메인 (PC/Mobile),GET,/textuser/mypage,장호철,"이동훈, 윤복영",jk-jobs-fe-mobile,3,"ps_mypage, reg_mypage, url_mypage"
+JK Mobile,마이페이지 / 계정 설정,JK 메인 (PC/Mobile),GET,/textuser/mypage/M_SNS_Regist,장호철,"이동훈, 윤복영",jk-jobs-fe-mobile,2,"ps_sns_regist, url_sns_regist"
+JK Mobile,마이페이지 / 계정 설정,JK 메인 (PC/Mobile),POST,/my/usercheck_ok.asp,장호철,"이동훈, 윤복영",jk-jobs-fe-mobile,2,"ps_usercheck_ok, reg_usercheck_ok"
+JK Mobile,마이페이지 / 계정 설정,JK 메인 (PC/Mobile),GET,/my/usercheck.asp,장호철,"이동훈, 윤복영",jk-jobs-fe-mobile,1,ps_usercheck_page
+JK Mobile,마이페이지 / 계정 설정,JK 메인 (PC/Mobile),POST,/my/useredit_ok.asp,장호철,"이동훈, 윤복영",jk-jobs-fe-mobile,2,"ps_useredit_ok, reg_useredit_ok"
+JK Mobile,마이페이지 / 계정 설정,JK 메인 (PC/Mobile),GET,/my/useredit.asp,장호철,"이동훈, 윤복영",jk-jobs-fe-mobile,1,ps_useredit_page
+JK Mobile,마이페이지 / 계정 설정,JK 메인 (PC/Mobile),GET,/my/userinfo.asp,장호철,"이동훈, 윤복영",jk-jobs-fe-mobile,1,ps_userinfo_page
+JK Mobile,이력서 관리,JK 이력서,POST,/textuser/resume/delete,장호철,"이동훈, 윤복영",jk-resume-fe,1,ps_resume_delete
+JK Mobile,이력서 관리,JK 이력서,GET,/TextUser/Resume/Write,장호철,"이동훈, 윤복영",jk-resume-fe,1,ps_resume_edit_page
+JK Mobile,이력서 관리,JK 이력서,POST,/textuser/resume/write/done,장호철,"이동훈, 윤복영",jk-resume-fe,2,"ps_resume_edit_save, ps_resume_write_done"
+JK Mobile,이력서 관리,JK 이력서,POST,/TextUser/Resume/GetLimitCheck,장호철,"이동훈, 윤복영",jk-resume-fe,1,ps_resume_limit_check
+JK Mobile,이력서 관리,JK 이력서,GET,/textuser/resume,장호철,"이동훈, 윤복영",jk-resume-fe,2,"ps_resume_mng, url_resume"
+JK Mobile,이력서 관리,JK 이력서,GET,/textuser/resume/view,장호철,"이동훈, 윤복영",jk-resume-fe,1,ps_resume_view
+JK Mobile,이력서 관리,JK 이력서,GET,/textuser/resume/write,장호철,"이동훈, 윤복영",jk-resume-fe,3,"ps_resume_write, ps_resume_write_page, url_resume_write"
+JK Mobile,이력서 관리,JK 이력서,GET,/textuser/resume/write/result,장호철,"이동훈, 윤복영",jk-resume-fe,1,ps_resume_write_result
+JK Mobile,검색 / 상세,JK 모바일 공고뷰,POST,/v1/job-search/jobs,이로움,이로움,search-front-mobile,1,app_search_jobs
+JK Mobile,검색 / 상세,JK 비즈센터 / 공고 검색,GET,/Recruit/GI_Read/${target_gno},문승연,문승연,search-front,1,ps_job_detail
+JK Mobile,검색 / 상세,JK 비즈센터 / 공고 검색,GET,/recruit/joblist/arealist,문승연,문승연,search-front,1,ps_search_jobs
+JK Mobile,검색 / 상세,JK 비즈센터 / 공고 검색,GET,/recruit/joblist/partlist,문승연,문승연,search-front,1,ps_search_jobs_part
+JK Mobile,스크랩,JK 메인 (PC/Mobile),POST,/v1/jobs/scraps,장호철,"이동훈, 윤복영",jk-jobs-fe-mobile,1,app_scrap_add
+JK Mobile,스크랩,JK 메인 (PC/Mobile),DELETE,/v1/jobs/scraps,장호철,"이동훈, 윤복영",jk-jobs-fe-mobile,1,app_scrap_delete
+JK Mobile,스크랩,JK 메인 (PC/Mobile),GET,/v1/scraps/me,장호철,"이동훈, 윤복영",jk-jobs-fe-mobile,1,app_scrap_list
+JK Mobile,스크랩,JK 메인 (PC/Mobile),GET,/v1/jobs/scraps/status,장호철,"이동훈, 윤복영",jk-jobs-fe-mobile,1,app_scrap_status
+JK Mobile,지원 / 즉시지원,JK 이력서,GET,/Text_User/RA_Mng_Del_ok.asp,장호철,"이동훈, 윤복영",jk-resume-fe,1,ps_apply_cancel
+JK Mobile,지원 / 즉시지원,JK 모바일 공고뷰,GET,/TextUser/ApplyMng/DelApply,이로움,이로움,search-front-mobile,1,ps_apply_delete
+JK Mobile,지원 / 즉시지원,JK 메인 (PC/Mobile),GET,/textuser/applymng,장호철,"이동훈, 윤복영",jk-jobs-fe-mobile,2,"ps_apply_mng, url_applymng"
+JK Mobile,탈퇴,JK 메인 (PC/Mobile),POST,/my/userleave_chk.asp,장호철,"이동훈, 윤복영",jk-jobs-fe-mobile,1,leave_chk
+JK Mobile,탈퇴,JK 메인 (PC/Mobile),POST,/my/userleave_ok.asp,장호철,"이동훈, 윤복영",jk-jobs-fe-mobile,1,leave_ok
+JK Mobile,공고 (등록/수정/마감/삭제/결제),JK 비즈센터 / 공고 검색,GET,/Corp/Buy/Opt,문승연,문승연,jk-bizcenter-fe-web,1,cp_jobpost_edit_page
+JK Mobile,공고 (등록/수정/마감/삭제/결제),JK 모바일 공고뷰,GET,/recrtmng/recruit/regist,이로움,이로움,search-front-mobile,1,cp_jobpost_regist_page
+JK Mobile,URL 페이지 점검,JK 메인 (PC/Mobile),GET,/recruit/joblist/arealist?local=I000,장호철,"이동훈, 윤복영",jk-jobs-fe-mobile,1,url_search_area_seoul
+JK Mobile,모바일 앱 native API,JK App API,POST,/Public/Api/App/GG_HomeData,신동현,신동현,am-mobile-native,1,app_home_data
+JK Mobile,모바일 앱 native API,JK App API,POST,/Public/Api/App/Menu,신동현,신동현,am-mobile-native,1,app_menu
+JK Mobile,모바일 앱 native API,JK App API,POST,/Public/Api/App/PushSettingOk,신동현,신동현,am-mobile-native,1,app_push_setting
+JK Mobile,기타,로그인 / 회원가입 / 인증,GET,/Text/ID_Unique_Check.asp,이동균,이동균,auth-api,1,id_unique_check
+AM PC,회원가입 / 인증,AM 전체 (BFF 제외),GET,/business/account/certification,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_account_certification
+AM PC,회원가입 / 인증,AM 전체 (BFF 제외),GET,/business/product/package-register,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_product_package_register
+AM PC,회원가입 / 인증,AM 전체 (BFF 제외),GET,/service-center/qna/register,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),4,"cp_url_jobs_service_center_qna_register, cp_url_jobs_service_center_qna_register_2, url_jobs_service_center_qna_register, url_jobs_service_center_qna_register_2"
+AM PC,회원가입 / 인증,AM BFF,GET,${BFF_URL}/member/users/sign-up/validation/usable-user-id,장호철,"이동훈, 윤복영",am-bff-general,1,ps_check_id
+AM PC,회원가입 / 인증,AM BFF,POST,${BFF_URL}/member/identity/phone-number/confirm-number,장호철,"이동훈, 윤복영",am-bff-general,1,ps_confirm_cert_code
+AM PC,회원가입 / 인증,AM BFF,GET,${BFF_URL}/member/identity/identity-verification/result-info,장호철,"이동훈, 윤복영",am-bff-general,1,ps_get_identity_verify
+AM PC,회원가입 / 인증,AM BFF,POST,${BFF_URL}/member/users/sign-up,장호철,"이동훈, 윤복영",am-bff-general,1,ps_register
+AM PC,회원가입 / 인증,AM 전체 (BFF 제외),POST,/api/msa/logging/access,장호철,"이동훈, 윤복영",am-msa-logging,1,ps_register_page
+AM PC,회원가입 / 인증,AM BFF,POST,${BFF_URL}/member/identity/phone-number/send-number,장호철,"이동훈, 윤복영",am-bff-general,1,ps_send_cert_code
+AM PC,회원가입 / 인증,AM 전체 (BFF 제외),GET,/personal/resume-register,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,url_jobs_personal_resume_register
+AM PC,로그인 / 로그아웃,AM BFF,POST,${BFF_URL}/member/login,장호철,"이동훈, 윤복영",am-bff-general,2,"cp_login, ps_login"
+AM PC,로그인 / 로그아웃,AM BFF,POST,${BFF_URL}/member/login/sns,장호철,"이동훈, 윤복영",am-bff-general,3,"ps_apple_login, ps_google_login, ps_kakao_login"
+AM PC,로그인 / 로그아웃,AM 전체 (BFF 제외),GET,/personal/account,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,url_jobs_personal_account_simple_login
+AM PC,이력서 관리,AM 전체 (BFF 제외),GET,/business/product/resume,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_product_resume
+AM PC,이력서 관리,AM BFF,DELETE,${BFF_PERSONAL_URL}/resumes/${RESUME_NO}/remove,장호철,"이동훈, 윤복영",am-bff-personal,1,ps_delete_resume
+AM PC,이력서 관리,AM BFF,POST,${BFF_PERSONAL_URL}/v2/resumes/save,장호철,"이동훈, 윤복영",am-bff-personal,2,"ps_edit_resume_save, ps_save_resume"
+AM PC,이력서 관리,AM BFF,GET,${BFF_PERSONAL_URL}/resumes/default/no,장호철,"이동훈, 윤복영",am-bff-personal,2,"ps_get_resume_default_no, ps_verify_resume_created"
+AM PC,이력서 관리,AM 전체 (BFF 제외),GET,/personal/product/resume,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,url_jobs_personal_product_resume
+AM PC,이력서 관리,AM 전체 (BFF 제외),GET,/personal/resume/limit/corp,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,url_jobs_personal_resume_limit_corp
+AM PC,이력서 관리,AM 전체 (BFF 제외),GET,/personal/resume-manage,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,url_jobs_personal_resume_manage
+AM PC,이력서 관리,AM 전체 (BFF 제외),GET,/personal/resume/open,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,url_jobs_personal_resume_open
+AM PC,이력서 관리,AM 전체 (BFF 제외),GET,/personal/resume/portfolio,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,url_jobs_personal_resume_portfolio
+AM PC,스크랩,AM 전체 (BFF 제외),GET,/business/talent-scrap,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_talent_scrap
+AM PC,스크랩,AM 전체 (BFF 제외),GET,/jobs/scrap/all,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_scrap, url_jobs_scrap"
+AM PC,지원 / 즉시지원,AM BFF,POST,${BFF_URL}/apply/recruits/${RECRUIT_NO}/online-apply,장호철,"이동훈, 윤복영",am-bff-general,1,ps_apply_recruit
+AM PC,지원 / 즉시지원,AM BFF,PATCH,${BFF_PERSONAL_URL}/apply/recruits/${RECRUIT_NO}/applicants/${APPLY_NO}/apply-cancel,장호철,"이동훈, 윤복영",am-bff-personal,1,ps_cancel_apply
+AM PC,지원 / 즉시지원,AM 전체 (BFF 제외),GET,/personal/apply/list/online-sms-email,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,url_jobs_personal_apply_list_online
+AM PC,탈퇴,AM BFF,PATCH,${BFF_PERSONAL_URL}/member/withdrawal,장호철,"이동훈, 윤복영",am-bff-personal,1,ps_withdrawal
+AM PC,공고 (등록/수정/마감/삭제/결제),AM BFF,PATCH,${BFF_COMPANY_URL}/recruit/management/recruits/close,장호철,"이동훈, 윤복영",am-bff-company,1,cp_close_recruit
+AM PC,공고 (등록/수정/마감/삭제/결제),AM BFF,DELETE,${BFF_COMPANY_URL}/recruit/management/recruits,장호철,"이동훈, 윤복영",am-bff-company,1,cp_delete_recruit
+AM PC,공고 (등록/수정/마감/삭제/결제),AM BFF,PUT,${BFF_COMPANY_URL}/recruit/registration/modify-recruit,장호철,"이동훈, 윤복영",am-bff-company,1,cp_modify_recruit
+AM PC,공고 (등록/수정/마감/삭제/결제),AM BFF,POST,${BFF_COMPANY_URL}/product/recruit-products/order-check,장호철,"이동훈, 윤복영",am-bff-company,1,cp_order_check
+AM PC,공고 (등록/수정/마감/삭제/결제),결제,POST,${PAY_URL}/PaymentRequestLogSave,임유리,임유리,payment-fe-web,1,cp_payment
+AM PC,공고 (등록/수정/마감/삭제/결제),AM BFF,POST,${BFF_COMPANY_URL}/product/recruit-regist/product-order,장호철,"이동훈, 윤복영",am-bff-company,1,cp_product_order
+AM PC,공고 (등록/수정/마감/삭제/결제),AM BFF,POST,${BFF_COMPANY_URL}/recruit/registration/save-recruit,장호철,"이동훈, 윤복영",am-bff-company,1,cp_save_recruit
+AM PC,공고 (등록/수정/마감/삭제/결제),AM 전체 (BFF 제외),GET,/business/payment-history/cash-point-add,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_payment_history_cash_point_add
+AM PC,공고 (등록/수정/마감/삭제/결제),AM 전체 (BFF 제외),GET,/business/payment-history/coupon,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_payment_history_coupon
+AM PC,공고 (등록/수정/마감/삭제/결제),AM 전체 (BFF 제외),GET,/business/payment-history/electax,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_payment_history_electax
+AM PC,공고 (등록/수정/마감/삭제/결제),AM 전체 (BFF 제외),GET,/business/payment-history/no-paid-list,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_payment_history_no_paid_list
+AM PC,공고 (등록/수정/마감/삭제/결제),AM 전체 (BFF 제외),GET,/business/payment-history/pay-type-history,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_payment_history_pay_type
+AM PC,공고 (등록/수정/마감/삭제/결제),AM 전체 (BFF 제외),GET,/business/payment-history/recruit,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_payment_history_recruit
+AM PC,공고 (등록/수정/마감/삭제/결제),AM 전체 (BFF 제외),GET,/business/product/product-guide,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_product_guide
+AM PC,공고 (등록/수정/마감/삭제/결제),AM 전체 (BFF 제외),GET,/business/product/sms,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_product_sms
+AM PC,공고 (등록/수정/마감/삭제/결제),AM 전체 (BFF 제외),GET,/business/recruit-manager/applicant?recruitNo=95045451&listDataType=GUIN&pageNo=1&isFirst=0,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_recruit_manager_applicant
+AM PC,공고 (등록/수정/마감/삭제/결제),AM 전체 (BFF 제외),GET,/business/recruit-manager/list-close,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_recruit_manager_list_close
+AM PC,공고 (등록/수정/마감/삭제/결제),AM 전체 (BFF 제외),GET,/business/recruit-manager/list-open,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_recruit_manager_list_open
+AM PC,공고 (등록/수정/마감/삭제/결제),AM 전체 (BFF 제외),GET,/business/recruit-manager/list-ready,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_recruit_manager_list_ready
+AM PC,공고 (등록/수정/마감/삭제/결제),AM 전체 (BFF 제외),GET,/business/recruit-manager/simple/list-open,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_recruit_manager_simple
+AM PC,공고 (등록/수정/마감/삭제/결제),AM BFF,GET,${BFF_COMPANY_URL}/v2/recruit/management/recruits?pageIndex=1&pageRowSize=20&sortFieldType=WRITE_DATE&sortType=DESC&folderNo=0&searchStartDate=&searchEndDate=&searchKeywordType=SUBJECT&searchKeyword=&listFilterType=ALL&postStatus=CLOSE,장호철,"이동훈, 윤복영",am-bff-company,1,cp_verify_recruit_closed
+AM PC,공고 (등록/수정/마감/삭제/결제),AM BFF,GET,${BFF_COMPANY_URL}/v2/recruit/management/recruits?pageIndex=1&pageRowSize=20&sortFieldType=WRITE_DATE&sortType=DESC&folderNo=0&listFilterType=ALL&postStatus=ALL,장호철,"이동훈, 윤복영",am-bff-company,2,"cp_verify_recruit_created, cp_verify_recruit_deleted"
+AM PC,공고 (등록/수정/마감/삭제/결제),AM 전체 (BFF 제외),GET,/personal/favorite/corp/recruit,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,url_jobs_personal_favorite_corp_recruit
+AM PC,공고 (등록/수정/마감/삭제/결제),AM 전체 (BFF 제외),GET,/personal/product/history,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,url_jobs_personal_product_history
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/alba-contract/proceed,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_alba_contract_proceed, url_jobs_alba_contract_proceed"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,https://test-bossmon.albamon.com:8001/bossmon/experience?af_xp=custom&af_force_deeplink=TRUE&source_caller=ui&pid=boss_experience_test&is_retargeting=true&af_click_lookback=1d&utm_source=albamon_nudge&shortlink=l1vg85ck&utm_medium=pc&utm_campaign=GnbJobs_bn&deep_link_value=bossmon%3A%2F%2Fcom.albamon.bossmon%3Ftype%3Dpaul%26tab%3Dhome&af_reengagement_window=14d&code=xkqstfdjzvbkbjgimznyvpiwejnfqvfj&c=boss_experience_test,장호철,"이동훈, 윤복영",bossmon (GNB 진입 점검),1,cp_url_bossmon_experience
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,https://test-bossmon.albamon.com:8001/bossmon/experience?af_xp=custom&af_force_deeplink=TRUE&source_caller=ui&pid=boss_experience_test&is_retargeting=true&af_click_lookback=1d&utm_source=albamon_nudge&shortlink=l1vg85ck&utm_medium=pc&utm_campaign=GnbJobs_shortcut&deep_link_value=bossmon%3A%2F%2Fcom.albamon.bossmon%3Ftype%3Dpaul%26tab%3Dhome&af_reengagement_window=14d&code=xbzkyenjydconeqgsqbtdcpmqdchkllf&c=boss_experience_test,장호철,"이동훈, 윤복영",bossmon (GNB 진입 점검),1,cp_url_bossmon_shortcut
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/ai-recommend/activity,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_ai_recommend, url_jobs_ai_recommend"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/alba-talk/advertise,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_alba_talk_advertise, url_jobs_alba_talk_advertise"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/alba-talk/alba-forms,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_alba_talk_alba_forms, url_jobs_alba_talk_alba_forms"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/alba-talk/interests/minimum-wage,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_alba_talk_interests, url_jobs_alba_talk_interests"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/alba-talk/job-cheat,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_alba_talk_job_cheat, url_jobs_alba_talk_job_cheat"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/alba-talk/labor-consultation,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_alba_talk_labor_consultation, url_jobs_alba_talk_labor_consultation"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/alba-talk/monsters/cb6,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_alba_talk_monsters, url_jobs_alba_talk_monsters"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/alba-talk/my/post,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_alba_talk_my_post, url_jobs_alba_talk_my_post"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/alba-talk/prep,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_alba_talk_prep, url_jobs_alba_talk_prep"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/alba-talk/review,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_alba_talk_review, url_jobs_alba_talk_review"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/alba-talk/safe/caution,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),4,"cp_url_jobs_alba_talk_safe, cp_url_jobs_alba_talk_safe_caution, url_jobs_alba_talk_safe, url_jobs_alba_talk_safe_caution"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/alba-talk/technical/covid-measures,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_alba_talk_technical, url_jobs_alba_talk_technical"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home, url_jobs_area_home"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=1000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_1000, url_jobs_area_home_1000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=A000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_A000, url_jobs_area_home_A000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=B000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_B000, url_jobs_area_home_B000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=C000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_C000, url_jobs_area_home_C000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=D000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_D000, url_jobs_area_home_D000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=E000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_E000, url_jobs_area_home_E000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=F000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_F000, url_jobs_area_home_F000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=G000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_G000, url_jobs_area_home_G000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=H000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_H000, url_jobs_area_home_H000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=I000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_I000, url_jobs_area_home_I000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=J000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_J000, url_jobs_area_home_J000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=K000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_K000, url_jobs_area_home_K000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=L000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_L000, url_jobs_area_home_L000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=M000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_M000, url_jobs_area_home_M000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=N000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_N000, url_jobs_area_home_N000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=O000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_O000, url_jobs_area_home_O000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=P000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_P000, url_jobs_area_home_P000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area/home?areas=Q000,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_area_home_Q000, url_jobs_area_home_Q000"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/bossmon/intro?activeType=CORPORATION?utm_source=albamon_nudge&utm_medium=pc&utm_campaign=GnbBiz_main,장호철,"이동훈, 윤복영",bossmon (GNB 진입 점검),1,cp_url_jobs_bossmon_intro
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand, url_jobs_brand"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/1010060?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_1010060, url_jobs_brand_normal_1010060"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/1030032?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_1030032, url_jobs_brand_normal_1030032"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/1040025?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_1040025, url_jobs_brand_normal_1040025"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/1050001?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_1050001, url_jobs_brand_normal_1050001"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/1060047?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_1060047, url_jobs_brand_normal_1060047"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/1070001?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_1070001, url_jobs_brand_normal_1070001"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/${BRAND_BAKERY_ID}?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_1080033, url_jobs_brand_normal_1080033"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/1090010?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_1090010, url_jobs_brand_normal_1090010"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/1120009?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_1120009, url_jobs_brand_normal_1120009"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/2010027?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_2010027, url_jobs_brand_normal_2010027"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/2020031?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_2020031, url_jobs_brand_normal_2020031"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/2030001?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_2030001, url_jobs_brand_normal_2030001"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/2050036?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_2050036, url_jobs_brand_normal_2050036"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/2060008?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_2060008, url_jobs_brand_normal_2060008"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/2070013?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_2070013, url_jobs_brand_normal_2070013"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/2080006?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_2080006, url_jobs_brand_normal_2080006"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/2090001?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_2090001, url_jobs_brand_normal_2090001"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/2126005?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_2126005, url_jobs_brand_normal_2126005"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/2135012?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_2135012, url_jobs_brand_normal_2135012"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/4100004?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_4100004, url_jobs_brand_normal_4100004"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/4130003?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_4130003, url_jobs_brand_normal_4130003"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/4135013?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_4135013, url_jobs_brand_normal_4135013"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/4221017?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_4221017, url_jobs_brand_normal_4221017"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/4222040?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_4222040, url_jobs_brand_normal_4222040"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/4224001?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_4224001, url_jobs_brand_normal_4224001"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/7010061?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_7010061, url_jobs_brand_normal_7010061"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/7025006?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_7025006, url_jobs_brand_normal_7025006"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/7051004?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_7051004, url_jobs_brand_normal_7051004"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/8050008?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_8050008, url_jobs_brand_normal_8050008"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/A060008?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_A060008, url_jobs_brand_normal_A060008"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/D060004?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_D060004, url_jobs_brand_normal_D060004"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/D070020?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_D070020, url_jobs_brand_normal_D070020"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/D074004?defaultIsOpen=true,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_brand_normal_D074004, url_jobs_brand_normal_D074004"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/business/account,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_account
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/business/account/news-info,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_account_news_info
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/business/account/password-change,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_account_password_change
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/business/account/two-step-list,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_account_two_step_list
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/business/account/two-step-manager,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_account_two_step_manager
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/business/recruit-manager/company-form,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_company_form
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/business/home,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_home
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/business/recruit-manager/manager-info,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_manager_info
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/business/media/corp-logo,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_media_corp_logo
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/business/poster-make,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_poster_make
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/business/recruit-manager/preliminary-question,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_preliminary_question
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/business/talent-block,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_talent_block
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/business/talent-browsed/week,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_talent_browsed_week
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/business/talent-custom/by-condition,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_talent_custom_condition
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/business/talent-memo,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_talent_memo
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/business/talent-smart,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_talent_smart
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/business/talent-suggest/all,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,cp_url_jobs_business_talent_suggest_all
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/college-town,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_college_town, url_jobs_college_town"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,https://community.dev.albamon.com/?entry=ALBAMON,장호철,"이동훈, 윤복영",am-community-fe-mobile-web,2,"cp_url_jobs_community, url_jobs_community"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/events/on-going,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_events_on_going, url_jobs_events_on_going"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/human-resources/freelancer,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_freelancer, url_jobs_freelancer"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/full-time,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_full_time, url_jobs_full_time"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/government-office,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_government_office, url_jobs_government_office"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/guerrilla/hot?guerrillaBoothNo=128,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_guerrilla_128, url_jobs_guerrilla_128"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/guerrilla/onion-test1?guerrillaBoothNo=130,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_guerrilla_130, url_jobs_guerrilla_130"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/guerrilla/fighting?guerrillaBoothNo=131,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_guerrilla_131, url_jobs_guerrilla_131"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/handicap,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_handicap, url_jobs_handicap"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/home,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_home, url_jobs_home"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/human-resources/brand,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_human_resources_brand, url_jobs_human_resources_brand"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/human-resources/college-student,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_human_resources_college_student, url_jobs_human_resources_college_student"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/human-resources/home,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_human_resources_home, url_jobs_human_resources_home"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/human-resources/realtime,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_human_resources_realtime, url_jobs_human_resources_realtime"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/human-resources/total,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_human_resources_total, url_jobs_human_resources_total"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/human-resources/veteran,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_human_resources_veteran, url_jobs_human_resources_veteran"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/mobile-service,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_mobile_service, url_jobs_mobile_service"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/part,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_part, url_jobs_part"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/pay,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_pay, url_jobs_pay"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/preference,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_preference, url_jobs_preference"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/range,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_range, url_jobs_range"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/recent/all,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_recent, url_jobs_recent"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/safe/employment-contract-promise,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_safe_employment, url_jobs_safe_employment"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/season/chuseok,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_season_chuseok, url_jobs_season_chuseok"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/season/seollal-lunar-new-year,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_season_seollal, url_jobs_season_seollal"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/season/ski-resorts,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_season_ski_resorts, url_jobs_season_ski_resorts"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/season/summer,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_season_summer, url_jobs_season_summer"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/season/winter,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_season_winter, url_jobs_season_winter"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/senior,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_senior, url_jobs_senior"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/service-center/faq,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_service_center_faq, url_jobs_service_center_faq"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/service-center/notice,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_service_center_notice, url_jobs_service_center_notice"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/service-center/terms/delete-rule,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_service_center_terms_delete_rule, url_jobs_service_center_terms_delete_rule"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/service-center/terms/location-based-services,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_service_center_terms_location, url_jobs_service_center_terms_location"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/service-center/terms/member,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_service_center_terms_member, url_jobs_service_center_terms_member"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/service-center/terms/privacy,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_service_center_terms_privacy, url_jobs_service_center_terms_privacy"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/service-center/terms/video-policy,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_service_center_terms_video, url_jobs_service_center_terms_video"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/service-center/terms/youth-policy,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_service_center_terms_youth_policy, url_jobs_service_center_terms_youth_policy"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/short-term,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_short_term, url_jobs_short_term"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/subway,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_subway, url_jobs_subway"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/suit,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_suit, url_jobs_suit"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/telecommuting,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_telecommuting, url_jobs_telecommuting"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/total,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_total, url_jobs_total"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/urgent,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_urgent, url_jobs_urgent"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/welfare,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_welfare, url_jobs_welfare"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/with-friend,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_with_friend, url_jobs_with_friend"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/youth/after-school,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),2,"cp_url_jobs_youth, url_jobs_youth"
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/alba-talk/review/manage,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,url_jobs_alba_talk_review_manage
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/personal/account/mailing,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,url_jobs_personal_account_mailing
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/personal/account/password-change,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,url_jobs_personal_account_password_change
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/personal/job-search/issue,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,url_jobs_personal_job_search_issue
+AM PC,URL 페이지 점검,AM 전체 (BFF 제외),GET,/personal/media,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,url_jobs_personal_media
+AM PC,기타,AM BFF,POST,${BFF_COMPANY_URL}/recruit/registration/get-calendar-date-information,장호철,"이동훈, 윤복영",am-bff-company,1,cp_get_calendar_info
+AM PC,기타,AM BFF,GET,${BFF_COMPANY_URL}/recruit/registration/get-form-basis-info?version=2,장호철,"이동훈, 윤복영",am-bff-company,1,cp_get_form_basis_info
+AM PC,기타,AM BFF,GET,${BFF_URL}/members/exist-social-account,장호철,"이동훈, 윤복영",am-bff-general,3,"ps_apple_check_social_account, ps_google_check_social_account, ps_kakao_check_social_account"
+AM PC,기타,AM BFF,GET,${BFF_URL}/resume/users/skill/banner,장호철,"이동훈, 윤복영",am-bff-general,1,ps_get_skill_banner
+AM PC,기타,AM BFF,GET,${BFF_PERSONAL_URL}/member/users/edit-by-pop-up,장호철,"이동훈, 윤복영",am-bff-personal,1,ps_get_user_edit_info
+AM PC,기타,AM BFF,PATCH,${BFF_PERSONAL_URL}/member/users/edit-by-pop-up,장호철,"이동훈, 윤복영",am-bff-personal,1,ps_update_personal_info
+AM Mobile,회원가입 / 인증,AM BFF,GET,${AM_BFF_DISPLAY_URL}/v1/individual/sign-up/check-member-id,장호철,"이동훈, 윤복영",am-bff-display-api,1,ps_check_member_id
+AM Mobile,회원가입 / 인증,AM BFF,GET,${BFF_URL}/member/restriction,장호철,"이동훈, 윤복영",am-bff-general,1,ps_check_restriction_phone
+AM Mobile,회원가입 / 인증,AM BFF,GET,${ALBAMON_MEMBER_URL}/internal/inspect/certifications,장호철,"이동훈, 윤복영",albamon-member-api,1,ps_get_cert_code
+AM Mobile,회원가입 / 인증,AM BFF,GET,${BFF_URL}/member/check-captcha-status,장호철,"이동훈, 윤복영",am-bff-general,1,ps_register_check_captcha
+AM Mobile,마이페이지 / 계정 설정,AM BFF,GET,${BFF_PERSONAL_URL}/albamonz/crew/type,장호철,"이동훈, 윤복영",am-bff-personal,1,m_mypage_albamonz_crew
+AM Mobile,마이페이지 / 계정 설정,AM BFF,GET,${BFF_PERSONAL_URL}/mypage/news/user/list?page=1&requestRowCount=20,장호철,"이동훈, 윤복영",am-bff-personal,1,m_mypage_news
+AM Mobile,마이페이지 / 계정 설정,AM BFF,GET,${BFF_PERSONAL_URL}/mypage/active-proposals/unanswered-exists,장호철,"이동훈, 윤복영",am-bff-personal,1,m_mypage_proposals
+AM Mobile,마이페이지 / 계정 설정,AM BFF,GET,${BFF_PERSONAL_URL}/v1/ready-to-work,장호철,"이동훈, 윤복영",am-bff-personal,1,m_mypage_ready_to_work
+AM Mobile,마이페이지 / 계정 설정,AM BFF,GET,${BFF_URL}/member/term/terms/optional-personal-status,장호철,"이동훈, 윤복영",am-bff-general,1,m_mypage_term_status
+AM Mobile,검색 / 상세,AM BFF,GET,${BFF_URL}/search/advanced/auto-word,장호철,"이동훈, 윤복영",am-bff-general,1,m_search_auto_word
+AM Mobile,검색 / 상세,AM BFF,POST,${BFF_URL}/recruit/search/condition,장호철,"이동훈, 윤복영",am-bff-general,1,m_search_condition
+AM Mobile,검색 / 상세,AM BFF,POST,${BFF_URL}/recruit/search,장호철,"이동훈, 윤복영",am-bff-general,1,m_search_keyword
+AM Mobile,스크랩,AM BFF,POST,${BFF_URL}/recruit/scrap?folderIndex=0&recruitNoList=${RECRUIT_NO},장호철,"이동훈, 윤복영",am-bff-general,1,m_scrap_add
+AM Mobile,스크랩,AM BFF,PUT,${BFF_URL}/recruit/scrap/cancel/${RECRUIT_NO},장호철,"이동훈, 윤복영",am-bff-general,1,m_scrap_cancel
+AM Mobile,스크랩,AM BFF,GET,${BFF_URL}/recruit/scrap/folders,장호철,"이동훈, 윤복영",am-bff-general,1,m_scrap_folders
+AM Mobile,지원 / 즉시지원,AM BFF,GET,${BFF_PERSONAL_URL}/apply/recruits/${RECRUIT_NO}/applicants/${APPLY_NO}/apply-cancel,장호철,"이동훈, 윤복영",am-bff-personal,1,ps_get_apply_cancel_info
+AM Mobile,지원 / 즉시지원,AM BFF,GET,${BFF_URL}/apply/recruits/${RECRUIT_NO}/email-apply,장호철,"이동훈, 윤복영",am-bff-general,1,ps_get_email_apply_info
+AM Mobile,지원 / 즉시지원,AM BFF,POST,${BFF_URL}/apply/recruits/${RECRUIT_NO}/email-apply,장호철,"이동훈, 윤복영",am-bff-general,1,ps_one_click_apply
+AM Mobile,지원 / 즉시지원,AM 전체 (BFF 제외),GET,/personal/apply/online,장호철,"이동훈, 윤복영",am-pc-pages (jts1.albamon.com),1,url_jobs_personal_apply_list_online
+AM Mobile,공고 (등록/수정/마감/삭제/결제),AM BFF,GET,${BFF_URL}/home/brand/recruits?mainAreaCode=1&subAreaCode=1&mainAreaName=%EC%84%9C%EC%9A%B8&subAreaName=%EC%A0%84%EC%B2%B4,장호철,"이동훈, 윤복영",am-bff-general,1,m_home_brand_recruits
+AM Mobile,공고 (등록/수정/마감/삭제/결제),AM BFF,GET,${BFF_URL}/home/recent/recruits?mainAreaCode=1&subAreaCode=1&mainAreaName=%EC%84%9C%EC%9A%B8&subAreaName=%EC%A0%84%EC%B2%B4,장호철,"이동훈, 윤복영",am-bff-general,1,m_home_recent_recruits
+AM Mobile,공고 (등록/수정/마감/삭제/결제),AM BFF,POST,${BFF_URL}/v1/recruit/view/detail,장호철,"이동훈, 윤복영",am-bff-general,1,m_recruit_view_detail
+AM Mobile,기업: 지원자 관리,AM BFF,GET,${BFF_COMPANY_URL}/v3/apply/applicants,장호철,"이동훈, 윤복영",am-bff-company,1,cp_applicant_list
+AM Mobile,기업: 지원자 관리,AM BFF,PATCH,${BFF_COMPANY_URL}/apply/hiring/confirmation,장호철,"이동훈, 윤복영",am-bff-company,1,cp_hiring_confirmation
+AM Mobile,기업: 지원자 관리,AM BFF,PATCH,${BFF_COMPANY_URL}/apply/hiring/rejection,장호철,"이동훈, 윤복영",am-bff-company,1,cp_hiring_rejection
+AM Mobile,기업: 지원자 관리,AM BFF,GET,${BFF_COMPANY_URL}/apply/hiring/rejection-form,장호철,"이동훈, 윤복영",am-bff-company,1,cp_hiring_rejection_form
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_home_smoke
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_area_home
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area?areas=B000,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_area_home_B000
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area?areas=C000,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_area_home_C000
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area?areas=D000,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_area_home_D000
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area?areas=E000,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_area_home_E000
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area?areas=F000,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_area_home_F000
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area?areas=G000,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_area_home_G000
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area?areas=H000,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_area_home_H000
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area?areas=I000,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_area_home_I000
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area?areas=J000,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_area_home_J000
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area?areas=K000,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_area_home_K000
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area?areas=L000,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_area_home_L000
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area?areas=M000,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_area_home_M000
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area?areas=N000,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_area_home_N000
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/area?areas=Q000,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_area_home_Q000
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/jobs/brand/normal/1080033,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_brand_normal_1080033
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/alba-talk,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_community
+AM Mobile,URL 페이지 점검,AM 전체 (BFF 제외),GET,/home,장호철,"이동훈, 윤복영",am-display-fe-mobile,1,url_jobs_home
+AM Mobile,모바일 앱 native API,AM BFF,GET,${BFF_URL}/albamonz/match/today-match-status,장호철,"이동훈, 윤복영",am-bff-general,1,m_home_albamonz_match
+AM Mobile,모바일 앱 native API,AM BFF,GET,${BFF_URL}/v2/home/promotion/banners/M,장호철,"이동훈, 윤복영",am-bff-general,1,m_home_banners
+AM Mobile,모바일 앱 native API,AM BFF,GET,${BFF_URL}/app/main-area,장호철,"이동훈, 윤복영",am-bff-general,1,m_home_main_area
+AM Mobile,모바일 앱 native API,AM BFF,GET,${BFF_URL}/home/service/banner,장호철,"이동훈, 윤복영",am-bff-general,1,m_home_service_banner
+AM Mobile,모바일 앱 native API,AM BFF,GET,${BFF_URL}/home/suggest-recruit/count,장호철,"이동훈, 윤복영",am-bff-general,1,m_home_suggest_count
+AM Mobile,기타,AM BFF,PATCH,${BFF_PERSONAL_URL}/member/users/edit/password,장호철,"이동훈, 윤복영",am-bff-personal,2,"ps_change_password, ps_restore_password"

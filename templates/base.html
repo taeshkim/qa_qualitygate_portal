@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Quality Gate Portal{% endblock %}</title>
+    {% load static %}
+    <link rel="icon" type="image/svg+xml" href="{% static 'favicon.svg' %}">
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=20260504a">
+    <script src="{% static 'js/qg_notify.js' %}?v=20260422h"></script>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <a href="{% url 'dashboard:index' %}" style="color:inherit;text-decoration:none;display:block">
+                    <h2>QG Portal</h2>
+                </a>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="{% url 'dashboard:index' %}" class="{% if request.resolver_match.app_name == 'dashboard' %}active{% endif %}">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a></li>
+                <li><a href="{% url 'qualitygates:folder_list' %}" class="{% if request.resolver_match.app_name == 'qualitygates' %}active{% endif %}">
+                    <i class="fas fa-shield-alt"></i> Quality Gate
+                </a></li>
+                <li><a href="{% url 'suites:suite_list' %}" class="{% if request.resolver_match.app_name == 'suites' and 'queue' not in request.path %}active{% endif %}">
+                    <i class="fas fa-flask"></i> Test Suites
+                </a></li>
+                <li><a href="{% url 'robustness:test_list' %}" class="{% if request.resolver_match.app_name == 'robustness' %}active{% endif %}">
+                    <i class="fas fa-heartbeat"></i> Reliability Test
+                </a></li>
+                <li><a href="{% url 'suites:queue' %}" class="{% if 'queue' in request.path %}active{% endif %}">
+                    <i class="fas fa-clock"></i> Queue
+                </a></li>
+                <li><a href="{% url 'activitylog:list' %}" class="{% if request.resolver_match.app_name == 'activitylog' %}active{% endif %}">
+                    <i class="fas fa-clipboard-list"></i> Log
+                </a></li>
+                {% if user.is_admin %}
+                <li style="margin-top:24px;padding-top:12px;border-top:1px solid var(--gray-700)">
+                    <a href="{% url 'accounts:user_list' %}" class="{% if request.resolver_match.url_name == 'user_list' or request.resolver_match.url_name == 'notification_settings' or request.resolver_match.url_name == 'api_key_admin_list' or request.resolver_match.url_name == 'api_owner_list' or request.resolver_match.url_name == 'api_owner_create' or request.resolver_match.url_name == 'api_owner_edit' or request.resolver_match.url_name == 'api_owner_sync' or request.resolver_match.url_name == 'api_host_list' or request.resolver_match.url_name == 'api_host_create' or request.resolver_match.url_name == 'api_host_edit' or request.resolver_match.url_name == 'slack_users_debug' %}active{% endif %}">
+                        <i class="fas fa-users-cog"></i> Admin
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+            <div class="sidebar-footer">
+                <button type="button" id="notify-toggle-btn" class="btn btn-sm btn-secondary btn-full" onclick="QGNotify.toggleNotify()" style="margin-bottom:12px">
+                    <i class="fas fa-bell-slash"></i> <span id="notify-toggle-label">알림 OFF</span>
+                </button>
+                <script>
+                    /* 페이지 전환 시 OFF → ON 깜빡임 방지 — DOMContentLoaded 를 기다리지 않고
+                       버튼이 파싱되자마자 현재 권한/mute 상태를 즉시 반영. */
+                    if (window.QGNotify && typeof QGNotify.updateToggleBtn === 'function') {
+                        QGNotify.updateToggleBtn();
+                    }
+                </script>
+                {% if user.is_authenticated %}
+                <div class="user-info">
+                    <i class="fas fa-user"></i>
+                    <span>{{ user.username }}</span>
+                    <span class="role-badge">{{ user.get_role_display }}</span>
+                </div>
+                <a href="{% url 'accounts:logout' %}" class="logout-link">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+                {% endif %}
+            </div>
+        </nav>
+
+        <!-- Toast container (전 페이지 공통) -->
+        <div id="qg-toast-container" style="position:fixed;top:20px;right:20px;z-index:2000;display:flex;flex-direction:column;gap:8px;max-width:360px"></div>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div id="qg-notify-banner" style="display:none;background:#fef3c7;border:2px solid #f59e0b;color:#78350f;padding:12px 16px;border-radius:6px;margin-bottom:12px;cursor:pointer;font-weight:600" onclick="QGNotify.requestPermission()">
+                <i class="fas fa-bell" style="margin-right:6px"></i>
+                <span id="qg-notify-banner-text">OS 알림 권한이 필요합니다. 이 배너를 클릭해서 허용하세요.</span>
+                <span style="float:right;font-weight:400;font-size:0.85em;opacity:0.8">* 팝업이 안 보이면 주소창 오른쪽 🔔 아이콘 또는 🔒 → 사이트 설정 → 알림 → 허용</span>
+            </div>
+
+            {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- 전역 고정 OS 알림 진단 버튼 (모든 페이지에서 노출) -->
+    <div id="qg-global-notify-test" style="position:fixed;bottom:20px;right:20px;z-index:1500;display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+        <div style="display:flex;gap:6px;align-items:center">
+            <button type="button" onclick="QGNotify.diagnoseOS()" title="OS 알림이 실제로 OS 트레이에 도달하는지 진단" style="background:#2563eb;color:#fff;border:none;padding:10px 14px;border-radius:24px;box-shadow:0 4px 12px rgba(0,0,0,0.2);cursor:pointer;font-weight:600;font-size:0.9rem">
+                <i class="fas fa-bell"></i> OS 알림 테스트
+            </button>
+            <button type="button" onclick="document.getElementById('qg-notify-guide').style.display=document.getElementById('qg-notify-guide').style.display==='none'?'block':'none'" title="OS 알림이 안 뜰 때 설정 가이드" style="background:#fff;color:#2563eb;border:1px solid #2563eb;width:36px;height:36px;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.15);cursor:pointer;font-weight:700;font-size:0.95rem">
+                ?
+            </button>
+        </div>
+
+        <div id="qg-notify-guide" style="display:none;background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:14px 16px;max-width:380px;max-height:500px;overflow-y:auto;font-size:0.82rem;line-height:1.55;box-shadow:0 4px 12px rgba(0,0,0,0.15)">
+            <div style="font-weight:700;font-size:0.95rem;margin-bottom:8px;color:#111">🔔 OS 알림이 안 뜰 때 체크리스트</div>
+            <div style="color:#6b7280;font-size:0.75rem;margin-bottom:10px">테스트 버튼을 눌렀을 때 토스트만 뜨고 OS 알림이 안 보인다면 아래 3단계 확인.</div>
+
+            <div style="font-weight:700;margin-top:10px;color:#1e3a8a">🍎 macOS</div>
+            <ol style="padding-left:20px;margin:6px 0">
+                <li><b>시스템 설정 → 알림 → Google Chrome</b>
+                    <ul style="padding-left:16px;margin:4px 0">
+                        <li>"알림 허용" <b>ON</b></li>
+                        <li>"알림 스타일" <b>배너</b> 또는 <b>경고</b> (없음이면 안 뜸!)</li>
+                        <li>"알림 센터에 표시" ON</li>
+                    </ul>
+                </li>
+                <li><b>집중 모드 OFF</b>
+                    <ul style="padding-left:16px;margin:4px 0">
+                        <li>메뉴바 우측 <b>제어 센터</b> → 달🌙 아이콘이 파란색이면 클릭해서 끔</li>
+                        <li>시스템 설정 → 집중 모드 → 자동 규칙 전부 해제</li>
+                    </ul>
+                </li>
+                <li><b>화면 미러링/공유 중</b>이면 macOS가 자동 차단 → 해제</li>
+                <li>배너는 화면 <b>우측 상단</b>에 뜸 (하단 아님!)</li>
+            </ol>
+
+            <div style="font-weight:700;margin-top:12px;color:#1e3a8a">🪟 Windows</div>
+            <ol style="padding-left:20px;margin:6px 0">
+                <li><b>설정 → 시스템 → 알림 → Google Chrome</b>
+                    <ul style="padding-left:16px;margin:4px 0">
+                        <li>Chrome 토글 <b>ON</b></li>
+                        <li>"알림 배너 표시" <b>ON</b> (OFF면 트레이에만 쌓임)</li>
+                        <li>"알림 센터에 알림 표시" ON</li>
+                    </ul>
+                </li>
+                <li><b>방해 금지 모드(집중 지원) OFF</b>
+                    <ul style="padding-left:16px;margin:4px 0">
+                        <li>알림 센터 상단 🌙 아이콘이 파란색이면 클릭해서 끔</li>
+                        <li>자동 규칙(시간대/게임/전체화면) 전부 해제</li>
+                    </ul>
+                </li>
+                <li><b>전체화면(F11) 상태면 숨김</b> — 설정에서 "전체화면 모드에서 알림 숨기기" OFF</li>
+            </ol>
+
+            <div style="font-weight:700;margin-top:12px;color:#1e3a8a">🌐 공통 (브라우저 쪽)</div>
+            <ol style="padding-left:20px;margin:6px 0">
+                <li>주소창 왼쪽 <b>🔒 자물쇠 → 사이트 설정 → 알림 → 허용</b></li>
+                <li><b>chrome://settings/content/notifications</b> → "조용한 메시지 사용" OFF</li>
+                <li>사이트 상단에 노란 배너가 보이면 클릭해서 권한 요청</li>
+            </ol>
+
+            <div style="margin-top:12px;padding:8px 10px;background:#fef3c7;border-radius:6px;font-size:0.78rem;color:#78350f">
+                <b>⚠ 참고</b> — Chrome 탭 자체를 완전히 닫으면 알림 안 옴 (JS가 안 돌아서). 백그라운드 탭으로 두거나 최소화는 OK.
+            </div>
+
+            <div style="margin-top:10px;text-align:right">
+                <button type="button" onclick="document.getElementById('qg-notify-guide').style.display='none'" style="background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:0.8rem">닫기</button>
+            </div>
+        </div>
+
+        <div id="qg-diag-result" style="display:none;background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:10px 12px;max-width:360px;max-height:400px;overflow-y:auto;font-size:0.78rem;line-height:1.5;box-shadow:0 4px 12px rgba(0,0,0,0.15);white-space:pre-line;font-family:ui-monospace,monospace"></div>
+    </div>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

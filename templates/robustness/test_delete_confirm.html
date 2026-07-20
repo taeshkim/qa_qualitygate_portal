@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Delete {{ test.name }} - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Reliability Test 삭제</h1>
+</div>
+
+<div class="card">
+    <p>"<strong>{{ test.name }}</strong>" 를 삭제하면 연결된 모든 스케줄과 실행 이력이 함께 사라집니다.</p>
+    <form method="post" style="margin-top:16px;display:flex;gap:8px">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">
+            <i class="fas fa-trash"></i> 삭제
+        </button>
+        <a href="{% url 'robustness:test_detail' test.pk %}" class="btn btn-secondary">취소</a>
+    </form>
+</div>
+{% endblock %}

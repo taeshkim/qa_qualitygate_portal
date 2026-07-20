@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}담당자 관리 - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>관리자</h1>
+</div>
+
+{% include "accounts/_admin_tabs.html" %}
+
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <h2 class="card-title" style="margin:0">
+            API Endpoint 담당자 매핑
+            <span class="text-muted" style="font-size:0.85rem;font-weight:400">({{ total_count }}건)</span>
+        </h2>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <form method="post" action="{% url 'accounts:api_owner_sync' %}" style="display:inline"
+                  onsubmit="return confirm('Google Sheets 의 현재 내용으로 동기화합니다.\n시트에 없는 임포트 행은 삭제됩니다 (수동 행은 보존). 계속할까요?');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-primary"
+                        title="Google Sheets 최신 내용으로 즉시 동기화 (full mirror)">
+                    <i class="fas fa-sync-alt"></i> Google Sheets 동기화
+                </button>
+            </form>
+            <a href="{% url 'accounts:api_owner_create' %}" class="btn btn-sm btn-secondary">
+                <i class="fas fa-plus"></i> 수동 추가
+            </a>
+            <a href="{% url 'accounts:api_owner_export' %}?{{ request.GET.urlencode }}" class="btn btn-sm btn-secondary">
+                <i class="fas fa-download"></i> CSV 다운로드 (현재 필터)
+            </a>
+        </div>
+    </div>
+
+    <div class="text-muted" style="font-size:0.82rem;margin-top:8px;line-height:1.7">
+        이 목록은
+        {% if sheet_url %}<a href="{{ sheet_url }}" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i> Google Sheets</a>{% else %}<span style="color:var(--danger)">Google Sheets (미설정 — .env 확인)</span>{% endif %}
+        의 내용을 그대로 가져온 것입니다. <strong>시트가 원본</strong>이라, 시트에 없는 자동 동기화 행은 지워지고 화면에서 직접 추가한 수동 행만 유지됩니다.
+        {% if sync_interval_minutes %}
+        <br><i class="fas fa-clock"></i> 자동 동기화: <strong>{{ sync_interval_minutes }}분</strong>마다 (주기는 아래에서 변경).
+        {% else %}
+        <br><i class="fas fa-clock"></i> 자동 동기화 <strong style="color:var(--danger)">꺼짐</strong> — 위 'Google Sheets 동기화' 버튼으로 수동 동기화하거나, 아래에서 주기를 설정하세요.
+        {% endif %}
+        {% if last_sync %}<br>마지막 동기화: <strong>{{ last_sync.created_at|date:"Y-m-d H:i" }}</strong> <span class="text-muted">({{ last_sync.detail }})</span>{% else %}<br><span style="color:var(--danger)">아직 한 번도 동기화되지 않았습니다.</span>{% endif %}
+        {% if sa_email %}<br><span class="text-muted"><i class="fas fa-key"></i> 시트를 서비스 계정 <code>{{ sa_email }}</code> 에 '뷰어' 권한으로 공유해 두어야 합니다.</span>{% endif %}
+    </div>
+
+    <form method="get" style="margin-top:14px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+        <input type="text" name="q" value="{{ filter_q }}" placeholder="검색 (endpoint / 담당자 / 팀 / 카테고리)"
+               class="form-input" style="flex:1;min-width:260px;padding:4px 8px;font-size:0.88rem">
+
+        <select name="repo" class="form-input" style="width:auto;padding:4px 8px;font-size:0.88rem">
+            <option value="">레포 전체</option>
+            {% for r in repos %}
+            <option value="{{ r }}" {% if filter_repo == r %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="mapped_app" class="form-input" style="width:auto;padding:4px 8px;font-size:0.88rem">
+            <option value="">매핑 앱 전체</option>
+            {% for a in mapped_apps %}
+            <option value="{{ a }}" {% if filter_mapped_app == a %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="is_imported" class="form-input" style="width:auto;padding:4px 8px;font-size:0.88rem">
+            <option value="" {% if filter_is_imported == "" %}selected{% endif %}>임포트 전체</option>
+            <option value="yes" {% if filter_is_imported == "yes" %}selected{% endif %}>CSV 임포트</option>
+            <option value="no" {% if filter_is_imported == "no" %}selected{% endif %}>수동 row</option>
+        </select>
+
+        <button type="submit" class="btn btn-sm btn-secondary">
+            <i class="fas fa-search"></i> 검색
+        </button>
+        {% if filter_q or filter_repo or filter_mapped_app or filter_is_imported %}
+        <a href="{% url 'accounts:api_owner_list' %}" class="btn btn-sm btn-secondary">초기화</a>
+        {% endif %}
+    </form>
+
+    <div class="table-wrapper" style="margin-top:14px">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>레포</th>
+                    <th>Method</th>
+                    <th>Endpoint</th>
+                    <th>카테고리</th>
+                    <th>매핑 앱</th>
+                    <th>FE 담당자</th>
+                    <th>BE 담당자</th>
+                    <th>출처</th>
+                    <th style="min-width:120px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for o in paginator_page.object_list %}
+                <tr>
+                    <td>{{ o.repo }}</td>
+                    <td><code>{{ o.method }}</code></td>
+                    <td style="font-family:monospace;font-size:0.85rem;word-break:break-all;max-width:480px">{{ o.endpoint }}</td>
+                    <td>{{ o.category|default:"-" }}</td>
+                    <td>{{ o.mapped_app|default:"-" }}</td>
+                    <td>{{ o.fe_owner|default:"-" }}</td>
+                    <td>{{ o.be_owner|default:"-" }}</td>
+                    <td>
+                        {% if o.is_imported %}
+                            <span class="status-badge" style="background:var(--gray-200);color:var(--text)">CSV</span>
+                        {% else %}
+                            <span class="status-badge status-pass">수동</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display:flex;gap:4px">
+                        <a href="{% url 'accounts:api_owner_edit' o.pk %}" class="btn btn-sm btn-secondary" title="수정">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                        <form method="post" action="{% url 'accounts:api_owner_delete' o.pk %}"
+                              onsubmit="return confirm('이 매핑을 삭제합니다. 계속할까요?\n\n{{ o.method }} {{ o.endpoint|slice:":80" }}');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-danger" title="삭제">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9" class="text-center text-muted">등록된 담당자 매핑이 없습니다. Google Sheets 동기화나 수동 추가로 시작하세요.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if paginator_page.paginator.num_pages > 1 %}
+    <div style="display:flex;justify-content:center;gap:6px;margin-top:14px;align-items:center">
+        {% if paginator_page.has_previous %}
+            <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ paginator_page.previous_page_number }}" class="btn btn-sm btn-secondary">이전</a>
+        {% endif %}
+        <span class="text-muted" style="font-size:0.88rem">
+            {{ paginator_page.number }} / {{ paginator_page.paginator.num_pages }}
+        </span>
+        {% if paginator_page.has_next %}
+            <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ paginator_page.next_page_number }}" class="btn btn-sm btn-secondary">다음</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<div class="card" style="margin-top:14px">
+    <h2 class="card-title">
+        <i class="fas fa-clock"></i> 자동 동기화 주기
+    </h2>
+    <p class="text-muted" style="font-size:0.85rem;margin-top:4px;margin-bottom:10px">
+        Google Sheets 를 몇 분마다 자동으로 가져올지 설정합니다. <strong>0 으로 두면 자동 동기화가 꺼지고</strong>, 위의 'Google Sheets 동기화' 버튼으로만 갱신됩니다.
+        <br><span style="font-size:0.78rem">(매분 도는 cron <code>sync_api_owners_from_sheet --if-due</code> 이 이 값을 읽어 주기 도래 시에만 실행 — crontab 수정 없이 여기서만 바꾸면 됩니다.)</span>
+    </p>
+    <form method="post" action="{% url 'accounts:owner_sync_settings_save' %}"
+          style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        {% csrf_token %}
+        <input type="number" name="interval_minutes" min="0" step="1"
+               value="{{ sync_interval_minutes }}"
+               class="form-input" style="width:120px;padding:6px 10px;font-size:0.9rem">
+        <span class="text-muted" style="font-size:0.85rem">분마다</span>
+        <button type="submit" class="btn btn-sm btn-primary">
+            <i class="fas fa-save"></i> 저장
+        </button>
+    </form>
+    <p class="text-muted" style="font-size:0.78rem;margin-top:8px">
+        현재 설정:
+        {% if sync_interval_minutes %}<strong>{{ sync_interval_minutes }}분</strong>마다 자동 동기화{% else %}<strong style="color:var(--danger)">자동 동기화 꺼짐</strong> (수동만){% endif %}
+    </p>
+</div>
+
+<div class="card" style="margin-top:14px">
+    <h2 class="card-title">
+        <i class="fas fa-user-friends"></i> Endpoint 매칭 실패 시 대체 담당자
+    </h2>
+    <p class="text-muted" style="font-size:0.85rem;margin-top:4px;margin-bottom:10px">
+        Error Log 의 URL 이 위 마스터 데이터와 매칭되지 않은 경우, 여기 등록된 담당자에게 자동 노티가 발송됩니다.
+        콤마로 여러 명 입력 (예: <code>김태식, 김도연</code>). Slack 표시명과 일치해야 멘션 동작.
+    </p>
+    <form method="post" action="{% url 'accounts:fallback_owners_save' %}"
+          style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        {% csrf_token %}
+        <input type="text" name="owners" value="{{ fallback_owners_text }}"
+               placeholder="예: 김태식, 김도연"
+               class="form-input" style="flex:1;min-width:320px;padding:6px 10px;font-size:0.9rem">
+        <button type="submit" class="btn btn-sm btn-primary">
+            <i class="fas fa-save"></i> 저장
+        </button>
+    </form>
+    {% if fallback_owners_text %}
+    <p class="text-muted" style="font-size:0.78rem;margin-top:8px">
+        현재 설정: <strong>{{ fallback_owners_text }}</strong>
+    </p>
+    {% else %}
+    <p style="color:var(--danger);font-size:0.82rem;margin-top:8px">
+        <i class="fas fa-exclamation-triangle"></i> 미설정 — 매칭 실패 URL 의 자동 알림이 발송되지 않습니다.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}
