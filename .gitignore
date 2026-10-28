@@ -58,3 +58,6 @@ staticfiles/
 htmlcov/
 .coverage
 .coverage.*
+
+# Local DB (GitHub 100MB 제한 초과 — 저장소에서 제외)
+db.sqlite3
