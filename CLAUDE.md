@@ -83,6 +83,6 @@ Slack 워크스페이스의 `display_name` / `real_name` 에 회사 컨벤션으
 
 - 응답은 한국어로, 짧은 원인 → 조치 형태로.
 - **독립 작업은 병렬 서브에이전트로 분배하는 것을 기본**으로 한다 (상세: 위 "병렬 에이전트 (기본 지침)" / `AGENTS.md`).
-- DB(`db.sqlite3`) 충돌 시 항상 로컬본을 최신으로 유지한다.
+- `db.sqlite3` 는 Git 에서 제외(`.gitignore`) 한다 — 커밋/`git add -f` 하지 않는다 (GitHub 100MB 제한 초과). DB 이관·동기화는 `apps/syncops` 스냅샷 명령으로만.
 - 파이프라인 상태 전이 로직을 건드릴 때는 maintenance.md §2 의 상태 기계 다이어그램을 함께 갱신.
 - **API Key (`apps/api_v2/models.ApiKey`) 의 평문**은 발급 직후 1회 외 어디에도 남기지 않는다. 로그/Slack/Activity Log/응답 본문/테스트 fixture 어디에도 평문을 저장하지 않는다 — DB 에는 SHA-256 해시(`key_hash`) 와 prefix 만. 평문을 디버깅용으로 print 한 코드/콘솔 출력이 보이면 즉시 제거.

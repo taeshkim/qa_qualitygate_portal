@@ -238,7 +238,7 @@ sudo journalctl -u qualitygate -f      # 로그 확인
 ./run.ps1
 ```
 
-`run.sh` / `run.ps1` / `run.bat` 는 실행 시마다 **먼저 `origin/master` 를 fast-forward(ff-only)로 당겨와 코드를 최신화**한다 (현재 브랜치가 `master` 가 아니거나 git 미설치/네트워크 실패/ff 불가 시엔 경고만 띄우고 현재 코드로 계속). **로컬 `db.sqlite3` 는 스크립트가 절대 건드리지 않는다** — ff-only 라 백업/복원/checkout 없이 코드만 갱신하며, 원격이 `db.sqlite3` 를 바꾼 커밋이면 로컬 변경과 충돌해 ff 가 막히고 그 회차 동기화를 건너뛴다. (DB 갱신은 수동 명령어로만)
+`run.sh` / `run.ps1` / `run.bat` 는 실행 시마다 **먼저 `origin/master` 를 fast-forward(ff-only)로 당겨와 코드를 최신화**한다 (현재 브랜치가 `master` 가 아니거나 git 미설치/네트워크 실패/ff 불가 시엔 경고만 띄우고 현재 코드로 계속). **로컬 `db.sqlite3` 는 스크립트가 절대 건드리지 않는다** — ff-only 라 백업/복원/checkout 없이 코드만 갱신한다 (`db.sqlite3` 는 Git 미추적이라 pull 로 바뀌지 않음, DB 갱신은 수동 명령어로만).
 이어서 `run.sh` / `run.ps1` 는 python3.13 → 3.12 → 3.11 → 3.10 순으로 인터프리터를 자동 탐색한다.
 기존 `.venv` 가 3.10 미만이면 재생성. 이후 `pip install` → `migrate` → `runserver 0.0.0.0:8601`.
 
@@ -277,7 +277,7 @@ python manage.py runserver 0.0.0.0:8601
 |---|---|
 | Python | 3.10+ |
 | Django | 4.2.x |
-| DB | SQLite (`db.sqlite3`, Git 에 포함) |
+| DB | SQLite (`db.sqlite3`, Git 에서 제외 — `.gitignore`) |
 | 캐시 | LocMem (`qgp:` prefix, Jenkins 파라미터 120초) |
 | Celery | `TASK_ALWAYS_EAGER=True` (실질 미사용) |
 | 서버 | `runserver 0.0.0.0:8601` (systemd `qualitygate.service`), 게이트웨이 `qw.jkintra.net/qg`(HTTPS) 뒤 — IDC `wx-qms221` |
@@ -372,7 +372,7 @@ Quality Gate 의 Jenkins/Argo CD 자격증명은 환경변수가 아니라 **인
 - **runserver 는 멀티스레드** 지만 SQLite 쓰기 락 + 외부 API 대기가 겹치면 다른 요청이 밀린다. 막힘이 길어지면 `./run.sh` 로 재기동.
 - **외부 호출 타임아웃**: Jenkins 8s, Argo CD 6s. Argo CD 폴링은 4초 쿨다운.
 - **파라미터 캐시**: `qgp:` prefix, 120초 LocMem. 모달 새로고침 = `gate_run_params?refresh=1`.
-- **`db.sqlite3` 는 Git 에 포함** — 충돌 시 항상 **로컬본을 최신으로** 유지. (운영 데이터 손실 방지)
+- **`db.sqlite3` 는 Git 에서 제외** (`.gitignore`, GitHub 100MB 제한 초과) — 커밋하지 않는다. 서버 간 DB 이관은 `apps/syncops` 스냅샷 명령(`export_snapshot`/`import_snapshot` 등) 사용.
 - **Argo CD 재시도** 버튼은 `*_argocd_synced_at` 가 채워진 뒤에만 뜬다 — 한번이라도 Synced + Healthy 에 도달했어야 노출.
 - **OS 알림이 안 뜨면** 우하단 **OS 알림 테스트** 버튼 → 진단 결과 확인.
   - macOS: 시스템 설정 → 알림 → Chrome → "배너" 또는 "경고", 집중 모드 OFF

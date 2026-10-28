@@ -36,7 +36,7 @@ UID 재사용, styled checkbox, 팝업 선택, 완료 페이지 검증 규칙을
        jenkins.py)                          argocd.py)
 ```
 
-- **DB**: SQLite (`db.sqlite3`, Git 에 포함)
+- **DB**: SQLite (`db.sqlite3`, Git 에서 제외 — `.gitignore`)
 - **캐시**: LocMemCache (Jenkins 파라미터 120초 캐싱용)
 - **Celery**: `TASK_ALWAYS_EAGER=True` — 사실상 동기 실행. 폴링은 HTTP 요청 흐름에서 발생.
 - **시간대**: Asia/Seoul, **언어**: ko-kr
@@ -1356,7 +1356,7 @@ ssh/rsync 가 막히고 HTTPS 만 열린 환경에서 원본 DB 를 새 서버�
 - 실행: `python manage.py runserver 0.0.0.0:8601` (단일 프로세스, 멀티스레드)
 - venv: `/home/taeshkim/qa_qualitygate_portal/.venv` (Python 3.10+)
 - 설정: `DJANGO_SETTINGS_MODULE=config.settings.dev` (production.py 도 있으나 운영은 dev.py 사용)
-- DB: `db.sqlite3` (Git 에 포함). **충돌 시 로컬본을 최신으로** 유지.
+- DB: `db.sqlite3` (**Git 에서 제외**, `.gitignore` — GitHub 100MB 제한 초과로 2026-10-28 추적 해제). 서버 간 이관은 `apps/syncops` 스냅샷 명령으로.
 
 하위 경로 배포(`http://172.20.0.221/qg/`)는 `.env` 의 `QGP_SCRIPT_NAME=/qg` 로 선택한다. 미설정이면 기존 루트 배포다. `DJANGO_ALLOWED_HOSTS` 의 기존 목록에 `172.20.0.221`, `qw.jkintra.net` 을 추가하고 서버를 재기동한다. Nginx 는 `/qg` 를 `/qg/` 로 리다이렉트하고, `/qg/` 를 `http://host.docker.internal:8601/` 로 전달하면서 접두 경로를 제거해야 한다. 관리 콘솔에 저장한 라우트가 실제 실행 중인 Nginx 설정에 적용됐는지도 확인한다.
 
@@ -1374,7 +1374,7 @@ ssh/rsync 가 막히고 HTTPS 만 열린 환경에서 원본 DB 를 새 서버�
 - 운영 확인: `systemctl status qualitygate`, `sudo journalctl -u qualitygate -f`. 의도적 종료는 `sudo systemctl stop qualitygate` (자동 재시작하지 않음). 서비스가 8601을 사용 중일 때 아래 수동 스크립트를 동시에 실행하지 않는다.
 
 `run.sh` / `run.ps1` / `run.bat` 가 동일 동작:
-0. `origin/master` fast-forward(ff-only) pull 로 코드 최신화. git 미설치 / 브랜치가 `master` 아님 / `git fetch` 실패 / ff 불가 → 경고만 출력하고 현재 코드로 계속. **`db.sqlite3` 는 스크립트가 일절 write/checkout/reset 하지 않음** — ff-only 라 코드만 갱신하고, 원격이 `db.sqlite3` 를 바꾼 커밋이면 로컬 변경과 충돌해 ff 가 막혀 그 회차만 건너뜀 (DB 는 수동 명령어로만 변경). → 각 스크립트의 `[1/6] 최신 master 동기화` 블록.
+0. `origin/master` fast-forward(ff-only) pull 로 코드 최신화. git 미설치 / 브랜치가 `master` 아님 / `git fetch` 실패 / ff 불가 → 경고만 출력하고 현재 코드로 계속. **`db.sqlite3` 는 스크립트가 일절 write/checkout/reset 하지 않음** — ff-only 라 코드만 갱신 (`db.sqlite3` 는 git 미추적, DB 는 수동 명령어로만 변경). → 각 스크립트의 `[1/6] 최신 master 동기화` 블록.
 1. python 3.13 → 3.12 → 3.11 → 3.10 → python3 순으로 인터프리터 탐색
 2. `.venv` 가 3.10 미만이면 재생성
 3. `pip install -q -r requirements.txt`
@@ -1392,7 +1392,7 @@ ssh/rsync 가 막히고 HTTPS 만 열린 환경에서 원본 DB 를 새 서버�
 - **verify** (`snapshot.py:compare_counts`): 행 수 `ok`/`newer(+N)`(`--allow-newer`)/`MISMATCH`/`MISSING`, manifest 에 없는 대상 테이블은 `extra` 로 보고만. manifest 의 마이그레이션이 대상에 미적용이면 `--allow-newer` 여도 실패. migrate 가 `django_migrations`·권한 행을 늘리므로 import 직후 검증은 `--allow-newer`. 출력 말미에 "행 수·마이그레이션만 비교, 내용 무결성은 import sha256 이 보증" 안내(내용 비교 `--deep`·HMAC 서명·`--encrypt-db` 는 미구현 한계).
 - **sync_from_source**: `--source` 는 `USER@HOST` 형식만(`-` 시작·공백·메타문자 거부, ssh/rsync 에 `--` 구분자). ssh(BatchMode + 사용자 `--ssh-opts` + 기본 `ServerAliveInterval=30`/`ServerAliveCountMax=20`) 원격 export(`--max-backup-seconds`·`--compress` 지정 시에만 전달) → rsync(`--partial`) → ③ manifest·sha256 검증 **직후 원격 번들 삭제**(`--keep-remote` 면 보존, 경로가 `.../snapshots/qg-*` 일 때만) → ④ import(`--force`/`--allow-older-code`/`--allow-same-host` 통과) → ⑤ verify(`--allow-newer`). 패스프레이즈는 ssh stdin(원격 `read` → `QG_SNAPSHOT_PASS`)으로만. 모든 실패 메시지에 원격 번들 경로·`rm -rf --` 정리 명령(이미 삭제됐으면 "이미 삭제됨")과, 사용자가 준 옵션에서 재구성한 재개 명령(④ 이후 실패는 `import_snapshot <로컬번들>`; 패스프레이즈는 변수명만 + 재설정 안내)을 출력. ssh 불가 시 번들을 수동 이동 후 `import_snapshot`.
 - **fetch_snapshot_via_api** (`fetch_snapshot_via_api.py`, 경로 C — HTTPS 만 열린 경우): 원본의 Export API(위 "DB 스냅샷 내보내기 API")로 번들을 받는다. `Command`(`:118`) → `_run`(`:161`): ① `_create`(`:261`, POST — **재시도 안 함**, 중복 생성 방지) 또는 `--existing-id` 재개 → ② `_wait_ready`(`:302`) 폴링(`--poll-interval`/`--timeout`) → ③ `_download`(`:337`)가 `<out-dir>/.fetch-<id>/<name>.part` 로 받으며 `Range: bytes=<have>-` 로 이어받기(`_consume` `:403` 이 206 `Content-Range` 시작 일치·200(Range 무시→처음부터)·416(이미 완전한 .part 수용) 처리, `MAX_RETRIES=5`·5xx/네트워크 오류 재시도), 응답 `X-Content-SHA256`·상태의 `files[].sha256`·manifest `db.file_sha256` **모두 일치해야** 최종 이름으로 `os.replace`(서버가 sha256 을 안 주면 거부) → ④ `_place_bundle`(`:457`)이 `<out-dir>/qg-<manifest.created_at>/` 에 DB 파일 → `manifest.json` 순으로 배치(같은 디렉터리가 이미 있으면 덮어쓰지 않고 실패) → ⑤ `_delete_remote`(`:321`, `--keep-remote` 면 생략; 실패해도 경고만 — 24h 뒤 자동 만료) → `import_snapshot`/`verify_snapshot --allow-newer` 안내 출력. **보안**: 키는 `--key-env` 환경변수에서만 읽고 `Client.scrub` 로 메시지에서 `***` 치환, `validate_url`(`:51`)이 `https://` 만(예외 `http://127.0.0.1|localhost`)·userinfo/query 금지, 리다이렉트는 같은 origin 만 수동 추적(Authorization 유출 방지), 파일명은 `ALLOWED_NAME_RE` 허용 목록, manifest 의 `config` 가 비어 있지 않으면 거부, 인증서 검증을 끄는 옵션 없음. 실패 메시지에는 항상 원격 snapshot id 와 `--existing-id` 재개 명령 포함(`_fail_message` `:149`). **config 는 이 경로로 오지 않는다** — `.env`/secrets 는 별도 전달.
-- **주의(운영 호스트)**: 운영 `db.sqlite3` 에 `import_snapshot`/`migrate` 금지, 실제 export 는 점검 창에서만(`--dry-run` 만 상시 안전). `run.sh` 는 기동 시 `git merge`·`pip`·`migrate` 를 자동 수행하므로 이관 import 전에 새 서버에서 실행하지 않는다. `db.sqlite3` 가 git 추적 파일이라 새 서버 clone 의 옛 DB 는 import 전에 `mv db.sqlite3 db.sqlite3.git-clone` 으로 치워 `--force` 없이 import 하는 것이 기본 절차(`--force` 는 의도적 덮어쓰기에만, `--allow-older-code` 는 쓰지 않음). `*.incoming`·`*.bak-*`·`db.sqlite3.pre-import-*`·`restored-system/` 등은 `.gitignore` 대상이며 `git add -A` 금지.
+- **주의(운영 호스트)**: 운영 `db.sqlite3` 에 `import_snapshot`/`migrate` 금지, 실제 export 는 점검 창에서만(`--dry-run` 만 상시 안전). `run.sh` 는 기동 시 `git merge`·`pip`·`migrate` 를 자동 수행하므로 이관 import 전에 새 서버에서 실행하지 않는다. `db.sqlite3` 는 git 미추적이라 새 서버 clone 에는 DB 가 없으므로 `--force` 없이 import 하는 것이 기본 절차 (예전 clone 에 옛 DB 가 남아 있으면 `mv db.sqlite3 db.sqlite3.git-clone` 으로 치운 뒤 import)(`--force` 는 의도적 덮어쓰기에만, `--allow-older-code` 는 쓰지 않음). `*.incoming`·`*.bak-*`·`db.sqlite3.pre-import-*`·`restored-system/` 등은 `.gitignore` 대상이며 `git add -A` 금지.
 - **테스트**: `QGP_SCRIPT_NAME= SLACK_BOT_TOKEN= TAPILOT_API_KEY= .venv/bin/python manage.py test apps.syncops` (임시 가짜 DB·ssh/rsync mock 만 사용, 운영 DB 불접촉; Export API 클라이언트/왕복 `tests_fetch_api`·`tests_api_roundtrip` 은 로컬 가짜 서버·LiveServer·임시 DB 만 쓰고 원본 서버로 요청을 보내지 않는다. 서버 쪽은 `apps.api_v2.tests_export`). 실제 ssh/rsync·5GB 급 export 는 자동 검증 불가 → 이관 리허설에서 수동 확인.
 
 ### SSO 운영 반영 (Keycloak client 신청 · 배포 순서 · 되돌리기)
@@ -2086,7 +2086,7 @@ Reliability 스케줄이 Jenkins Suite 뿐 아니라 TAP(UI Automation) Suite �
 | Argo CD 가 `yaml: line N: mapping values are not allowed in this context` 로 sync 실패 (자동 트리거) | GitOps 저장소의 `deployment.yaml` 에 `image: registry/foo:` 처럼 빈 태그가 푸시되었는지 | 자동 deploy/prod 트리거 시 ImageTagParameter / Active Choice 의 default 가 비어 있어 Portal 이 빈 태그를 명시 전송하던 게 원인. `_collect_default_params` 가 빈 문자열을 dict 에서 제외하도록 수정됨 (`views.py`). 이미 푸시된 깨진 매니페스트는 데브옵스가 GitOps 저장소에서 직접 정정하거나 다음 정상 Run 으로 덮어써야 함. |
 | Argo CD 가 `yaml: line N: mapping values are not allowed in this context` 로 sync 실패 (수동 모달) | 수동 배포 모달에서 APP_IMAGE 에 빈 태그(`registry/foo:`)가 선택된 채 submit 됐는지 | **2026-06-02 사고** (Run `bca67034-...`, auth-worker #30). 3중 방어로 재발 차단: ① 모달 열기 시 `resolve_and_apply_app_image` (구: `_override_app_image_default`) 가 이 Run 의 콘솔 추출 태그(폴백: 이미지 prefix)로 default 오버라이드 + 매칭/추출 실패 시 submit 버튼 비활성화. ② 모달 JS submit 가드(`_isValidAppImage`)가 브라우저에서 차단. ③ 서버 `_validate_app_image_param` (`services.py:346`)이 HTTP 400 반환. 이미 푸시된 깨진 매니페스트는 GitOps 저장소에서 직접 정정. |
 | Auto deploy 가 `MissingPropertyException: No such property: APP_IMAGE for class: WorkflowScript` 로 실패 | Jenkins 빌드의 ParametersAction 에 APP_IMAGE 가 빠져 있는지 | ImageTagParameter 의 choices 가 트리거 시점에 비어 들어왔거나 (`_scrape_build_form_choices` 가 일시적으로 빈 결과 반환 등) HTML scrape 가 실패해 `_collect_default_params` 가 빈 값으로 판단해 dict 에서 제외했고, Jenkins 는 빠진 파라미터를 plugin default 로 채우지 않아 Jenkinsfile 의 `APP_IMAGE` 참조가 미바인딩이 됐던 케이스. `_auto_trigger_deploy` 가 `run.image_build_number-` 로 시작하는 choice 를 사전에 default 로 오버라이드해서 명시 전송하도록 수정됨 (`views.py`). choices 자체가 비어 매칭이 불가능한 경우엔 자동 진행을 보류하고 `WAITING_DEPLOY` 로 전환해 사용자에게 모달을 띄움. |
-| db.sqlite3 머지 충돌 | Git pull 중 발생 | 로컬본을 항상 최신으로 유지 — 운영 데이터 손실 방지. |
+| db.sqlite3 머지 충돌 | 2026-10-28 이전 커밋(DB 가 Git 에 포함되던 시절) 기준으로 pull 할 때 | 현재는 `.gitignore` 대상 — 로컬본을 유지하고 `git rm --cached db.sqlite3` 로 추적만 해제. |
 | `fetch_snapshot_via_api` 가 404 `not_found` (HTML 404 포함) | 원본에 Export API 코드가 배포·재시작됐는지(`/api/v2/export/snapshots/<uuid>/` 가 JSON `not_found` 인지 HTML 404 인지), `--url` 의 접두 경로(`/qg` 등) | 원본에 이 저장소 변경이 반영돼야 한다(`git pull` + 서비스 재시작). 접두 경로가 있으면 `--url https://host/qg` 처럼 포함. |
 | Export API 호출이 401/403 (`scope_required`/`role_denied`) | 키에 `export:read` 가 **명시**됐는지(`*` 만으로는 안 됨), 키 소유자가 admin(`qpe_admin`/superuser) 인지, 만료·회수 여부 | admin 이 `/accounts/api-keys/new/` 에서 `export:read` 키를 새로 발급(소유자 강등 시 기존 키도 차단됨). 키 평문은 발급 직후 1회만 보인다. |
 | Export API 409 `export_in_progress` / `export_not_ready` | 다른 스냅샷이 실행 중인지(`GET …/<id>/` 의 `status`), 다운로드 대상이 `ready` 인지 | 하나만 동시에 실행. 끝나길 기다리거나 `--existing-id` 로 기존 id 재개. 서버가 죽어 `running` 으로 남았으면 조회 시 5분(하트비트)·pid 판정으로 `failed` 가 되어 새로 만들 수 있다. |

@@ -10,7 +10,7 @@
 |---|---|
 | 가상환경 | `.venv` (python 3.13→3.12→3.11→3.10 자동 탐색) |
 | 포트 | **8601** (`runserver 0.0.0.0:8601`) |
-| DB | SQLite `db.sqlite3` (**git 에 포함**) |
+| DB | SQLite `db.sqlite3` (**git 에서 제외** — `.gitignore`) |
 | 설정 | `config.settings.dev` (SQLite + LocMem 캐시 + EAGER celery) — 운영도 이걸 사용 |
 | 로컬 admin | `admin` / `admin123` |
 | 캐시 | LocMem, prefix `qgp:`, Jenkins 파라미터 120초 |
@@ -32,7 +32,7 @@ sudo journalctl -u qualitygate -f
 ./run.sh            # macOS/Linux : origin/master ff 자동동기화 → venv → pip → migrate → runserver:8601
 ./run.ps1           # Windows
 ```
-- `run.*` 는 기동 시 **`origin/master` 를 ff-only 로 당겨 코드만 최신화**한다. **`db.sqlite3` 는 절대 건드리지 않는다** (원격이 db 를 바꾼 커밋이면 ff 가 막혀 그 회차 동기화는 건너뜀 — DB 갱신은 수동 명령으로만).
+- `run.*` 는 기동 시 **`origin/master` 를 ff-only 로 당겨 코드만 최신화**한다. **`db.sqlite3` 는 절대 건드리지 않는다** (git 미추적 — DB 갱신은 수동 명령으로만).
 - 서비스 실행 중(수동이면 실행 터미널 유지) `curl -s http://localhost:8601/health/` → `{"status":"ok"}` 로 백엔드 확인.
 - **Nginx `/qg` 배포**: `.env` 에 `QGP_SCRIPT_NAME=/qg`, 기존 `DJANGO_ALLOWED_HOSTS` 목록에 `172.20.0.221`, `qw.jkintra.net` 추가 후 서비스 재시작 (수동 환경은 `./run.sh`). Nginx 는 `/qg/` → `http://host.docker.internal:8601/` 로 접두 경로를 제거해 전달하고 실제 적용까지 확인한다. 브라우저 주소는 `http://172.20.0.221/qg/`, 프록시 헬스체크는 `curl -s http://172.20.0.221/qg/health/`. 로컬 루트 브라우저 접속은 `QGP_SCRIPT_NAME` 미설정 시 사용한다.
 
@@ -98,7 +98,7 @@ curl -s http://localhost:8601/api/v1/jenkins/test-connection/ -u admin:admin123
 ## 4. 검증 체크리스트 (커밋 전 필수 — CLAUDE.md 순서 엄수)
 
 - **UI/화면 변경** → `./run.sh` + 브라우저로 골든패스 + 엣지. 외부 응답 필요해 자동검증 불가 시 **사용자 확인 요청**.
-- **모델/마이그레이션** → `migrate` 적용 + 관련 뷰/admin 화면 정상 로드. (migrate 하면 `db.sqlite3` 가 수정 상태가 됨에 유의)
+- **모델/마이그레이션** → `migrate` 적용 + 관련 뷰/admin 화면 정상 로드. (`db.sqlite3` 는 git 미추적이라 커밋 대상 아님)
 - **백엔드 로직** → 단위 테스트 또는 인터프리터 호출로 입출력 직접 검증.
 - **하위 경로/Nginx 배포 변경** → `QGP_SCRIPT_NAME= SLACK_BOT_TOKEN= TAPILOT_API_KEY= GATEWAY_ENTRY_ENABLED= TRUSTED_PROXY_CIDRS= QGP_BASE_URL= .venv/bin/python manage.py test config.test_subpath apps.accounts apps.api_v2 apps.suites apps.visualization`. 로컬 배포값·외부 연동키를 비운 테스트 환경에서 루트/접두 경로 회귀를 확인한다. 실제 `./run.sh` + 프록시에서 로그인·회원가입·CSS/JS·`health/` HTTP 응답과 데스크톱/모바일 화면을 확인한다 (정적 URL 초기 캐시·권한·API 링크·스키마도 검증).
 - **SSO(Keycloak)/로그인·로그아웃 변경** → `QGP_SCRIPT_NAME= SLACK_BOT_TOKEN= TAPILOT_API_KEY= GATEWAY_ENTRY_ENABLED= TRUSTED_PROXY_CIDRS= QGP_BASE_URL= .venv/bin/python manage.py test apps.accounts config.test_subpath` (로그아웃 (a')진입모드·(a)게이트웨이·(b)Keycloak end-session·(c)로그인 화면, id_token 비노출, 메타데이터 실패 폴백, 프록시 경계, 중복 연결 방지, 진입 모드 `GatewayEntryTests`/`GatewayEntrySettingsTests`·로그아웃 HTML `GatewayLogoutPageTests` 포함; 2026-10-09 기준 184개 OK). **검증 항목(진입 모드/로그아웃)**: ① 로그아웃 응답이 302 가 아니라 `Location` 헤더 없는 HTML(meta refresh+JS+링크, URL 이스케이프)인지 ② `GATEWAY_ENTRY_ENABLED` 에서 로그인 화면에 "Keycloak 로그인" 버튼이 있고 `LOCAL_LOGIN_ACTIVE` 가 꺼지는지(`LOCAL_LOGIN_ENABLED=True` 면 복구) ③ `/accounts/gateway-login/` 이 인증됨→`next` 리다이렉트, 헤더 없음→503 `sso_unavailable`(루프 없음), 거부→403 인지 ④ 플래그 꺼짐이면 기존 동작·버튼 없음. 실제 게이트웨이 왕복(버튼→Keycloak→대시보드, 로그아웃→로그인 화면, 로그아웃 후 재클릭 시 재인증 요구)은 게이트웨이 라우팅이 필요해 자동 검증이 안 되므로 **사용자 브라우저 확인을 요청**한다. 실제 Keycloak 왕복(로그인·로그아웃 복귀·재클릭 시 비밀번호 요구)은 운영 Keycloak client 가 필요해 자동 검증이 어려우므로 **사용자에게 시크릿 창 확인을 요청**한다. 로그인 화면 디자인은 아래 헤드리스 스냅샷(비로그인 화면이라 `shot.py` 의 로그인 세션 없이 `/accounts/login/`)으로 데스크톱·모바일(390px)·다크를 확인한다.
