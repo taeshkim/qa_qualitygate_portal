@@ -4,12 +4,12 @@
         <span class="text-muted" style="font-size:0.8rem;font-weight:normal">(10초마다 자동 갱신)</span>
     </h2>
     {% if schedules and user.can_write %}
-    <div style="display:flex;gap:6px;align-items:center">
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <form method="post" action="{% url 'robustness:test_toggle_parallel' test.pk %}" style="margin:0">
             {% csrf_token %}
             <button type="submit"
                     class="btn btn-sm {% if test.parallel_jobs %}btn-primary{% else %}btn-secondary{% endif %}"
-                    title="{% if test.parallel_jobs %}모든 스케줄이 Suite 의 잡들을 동시에 트리거합니다. 클릭하면 순차 실행으로 전환.{% else %}모든 스케줄이 잡을 하나씩 순차 실행합니다. 클릭하면 병렬 실행으로 전환.{% endif %}">
+                    {% if test.single_job_mode %}disabled title="단일 테스트 모드 중에는 사용할 수 없습니다 (단일 모드를 끄면 사용 가능)"{% else %}title="{% if test.parallel_jobs %}모든 스케줄이 Suite 의 잡들을 동시에 트리거합니다. 클릭하면 순차 실행으로 전환.{% else %}모든 스케줄이 잡을 하나씩 순차 실행합니다. 클릭하면 병렬 실행으로 전환.{% endif %}"{% endif %}>
                 {% if test.parallel_jobs %}
                 <i class="fas fa-bolt"></i> 잡 병렬 실행 ON
                 {% else %}
@@ -17,16 +17,26 @@
                 {% endif %}
             </button>
         </form>
+        <form method="post" action="{% url 'robustness:test_toggle_single' test.pk %}" style="margin:0">
+            {% csrf_token %}
+            <button type="submit"
+                    class="btn btn-sm {% if test.single_job_mode %}btn-primary{% else %}btn-secondary{% endif %}"
+                    title="{% if test.single_job_mode %}트리거 시 Suite 의 비어있는(idle) 잡 1개만 실행합니다. 클릭하면 해제.{% else %}트리거 시 Suite 의 비어있는(idle) 잡 1개만 실행(전체 잡 대신). 클릭하면 활성화 — 잡 병렬 실행은 자동 OFF.{% endif %}">
+                <i class="fas fa-bullseye"></i> 단일 테스트 {% if test.single_job_mode %}ON{% else %}OFF{% endif %}
+            </button>
+        </form>
         <form method="post" action="{% url 'robustness:schedule_start_all' test.pk %}">
             {% csrf_token %}
-            <button type="submit" class="btn btn-sm btn-primary">
+            <button type="submit" class="btn btn-sm btn-primary"
+                    {% if any_running %}disabled title="이미 실행 중인 스케줄이 있습니다"{% endif %}>
                 <i class="fas fa-play"></i> 일괄 시작
             </button>
         </form>
         <form method="post" action="{% url 'robustness:schedule_stop_all' test.pk %}"
               onsubmit="return confirm('모든 스케줄을 중지하고 진행 중인 실행도 중단합니다. 계속할까요?');">
             {% csrf_token %}
-            <button type="submit" class="btn btn-sm btn-danger">
+            <button type="submit" class="btn btn-sm btn-danger"
+                    {% if not any_running %}disabled title="실행 중인 스케줄이 없습니다"{% endif %}>
                 <i class="fas fa-stop"></i> 일괄 중지
             </button>
         </form>
@@ -44,7 +54,7 @@
     <table class="table">
         <thead>
             <tr>
-                <th>Test Suite</th>
+                <th>Suite</th>
                 <th>상태</th>
                 <th>간격</th>
                 <th>실행 수</th>
@@ -60,9 +70,14 @@
             {% for schedule in schedules %}
             <tr>
                 <td>
+                    {% if schedule.is_tap %}
+                    <span class="status-badge status-running" style="font-size:0.68rem;margin-right:6px" title="UI Automation (TAP)">UI</span>
+                    <strong>{{ schedule.target_name }}</strong>
+                    {% else %}
                     <a href="{% url 'suites:suite_detail' schedule.test_suite.pk %}">
-                        <strong>{{ schedule.test_suite.name }}</strong>
+                        <strong>{{ schedule.target_name }}</strong>
                     </a>
+                    {% endif %}
                 </td>
                 <td>
                     {% if schedule.is_running %}
@@ -91,7 +106,7 @@
                 </td>
                 <td>
                     <strong>{{ schedule.total_executions }}</strong>
-                    <span class="text-muted" style="font-size:0.75rem">잡</span>
+                    <span class="text-muted" style="font-size:0.75rem">{% if schedule.is_tap %}케이스{% else %}잡{% endif %}</span>
                     {% if schedule.in_flight_count %}
                     <span class="text-muted" style="font-size:0.8rem">(+{{ schedule.in_flight_count }} 진행중)</span>
                     {% endif %}
@@ -113,7 +128,15 @@
                 </td>
                 <td>
                     {% if schedule.last_triggered_at %}
-                    {{ schedule.last_triggered_at|date:"m/d H:i:s" }}
+                        {% with target_run=schedule.latest_run %}
+                        {% if target_run %}
+                        <a href="{% if schedule.is_tap %}{% url 'suites:tap_run_detail' target_run.pk %}{% else %}{% url 'suites:run_detail' target_run.pk %}{% endif %}">
+                            {{ schedule.last_triggered_at|date:"m/d H:i:s" }}
+                        </a>
+                        {% else %}
+                        {{ schedule.last_triggered_at|date:"m/d H:i:s" }}
+                        {% endif %}
+                        {% endwith %}
                     {% else %}
                     <span class="text-muted">-</span>
                     {% endif %}

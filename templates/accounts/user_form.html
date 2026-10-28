@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}사용자 추가 - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>관리자</h1>
+</div>
+
+{% include "accounts/_admin_tabs.html" %}
+
+<div class="card">
+    <h2 class="card-title"><i class="fas fa-user-plus"></i> 사용자 직접 추가</h2>
+
+    <p class="text-muted" style="font-size:0.85rem;margin-top:-6px;margin-bottom:12px">
+        가입 신청/승인 절차 없이 <strong>즉시 사용 가능한 활성 계정</strong>으로 생성됩니다.
+        비밀번호는 8자 이상 + 특수문자 1자 이상이어야 하며, 생성 후 본인이 로그인해 사용합니다.
+    </p>
+
+    <form method="post" style="display:flex;flex-direction:column;gap:12px;max-width:520px">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+        <div class="alert alert-error">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        {% for field in form %}
+        <div>
+            <label for="{{ field.id_for_label }}" style="display:block;font-weight:600;font-size:0.88rem;margin-bottom:4px">
+                {{ field.label }}
+                {% if field.field.required %}<span style="color:var(--danger)">*</span>{% endif %}
+            </label>
+            {{ field }}
+            {% if field.help_text %}
+            <div class="text-muted" style="font-size:0.78rem;margin-top:2px">{{ field.help_text }}</div>
+            {% endif %}
+            {% if field.errors %}
+            <div style="color:var(--danger);font-size:0.82rem;margin-top:2px">{{ field.errors }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-user-plus"></i> 계정 생성
+            </button>
+            <a href="{% url 'accounts:user_list' %}" class="btn btn-secondary">취소</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

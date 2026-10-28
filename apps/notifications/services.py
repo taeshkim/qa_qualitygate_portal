@@ -46,6 +46,9 @@ _EVENT_META = {
     E.SUITE_RUN_STARTED: ("notify_suite_run_started", "#3aa0ff", ":test_tube:", "Suite Run 시작"),
     E.SUITE_RUN_PASSED: ("notify_suite_run_passed", "#36a64f", ":white_check_mark:", "Suite Run PASS"),
     E.SUITE_RUN_FAILED: ("notify_suite_run_failed", "#e01e5a", ":x:", "Suite Run FAIL"),
+    E.TAP_RUN_STARTED: ("notify_tap_run_started", "#3aa0ff", ":desktop_computer:", "UI Suite 실행 시작"),
+    E.TAP_RUN_PASSED: ("notify_tap_run_passed", "#36a64f", ":white_check_mark:", "UI Suite PASS"),
+    E.TAP_RUN_FAILED: ("notify_tap_run_failed", "#e01e5a", ":x:", "UI Suite FAIL"),
     E.ARGOCD_FAILED: ("notify_argocd_failed", "#e01e5a", ":warning:", "Argo CD Sync 실패"),
 }
 
@@ -335,10 +338,14 @@ def _suite_event_fields(event_type: str, suite_run, ctx: dict) -> list:
             except Exception as exc:  # noqa: BLE001
                 logger.debug("실패 job 목록 조회 실패: %s", exc)
         # 각 실패 job 별 담당자 멘션 + 에러 발췌 (1번째 job 만 — 메시지 길이 보호)
+        # 스케줄/자동 트리거(triggered_by 없음) run 은 담당자 F/U(멘션) 를 본문에서 뺀다
+        # — 상시 자동 실패로 담당자를 계속 핑하지 않고, 필요 시 Triage 버튼으로만 멘션.
+        owner_fu = suite_run.triggered_by is not None
         for jr in failed_jrs[:1]:
             followup = _build_followup_for_job_run(
                 job_run_id=str(jr.pk),
                 context_label_extra=f"Suite: {suite.name if suite else '?'} / Job: {jr.job.job_name if jr.job else '?'}",
+                owner_fu=owner_fu,
             )
             if followup:
                 fields.append({"title": "이슈 F/U", "value": followup, "short": False})
@@ -346,11 +353,17 @@ def _suite_event_fields(event_type: str, suite_run, ctx: dict) -> list:
     return fields
 
 
-def _build_followup_for_job_run(job_run_id: Optional[str], context_label_extra: str = "") -> str:
+def _build_followup_for_job_run(
+    job_run_id: Optional[str], context_label_extra: str = "", owner_fu: bool = True,
+) -> str:
     """TestSuiteJobRun 의 console_output 으로 owner 매칭 + 에러 발췌 + 멘션 텍스트 생성.
 
     실패해도 silent — 메시지에 안 들어가도 자동 알림 자체는 진행돼야 한다.
     Slack attachment field `value` 안에 들어가도 적당하도록 텍스트 길이를 보수적으로 잡는다.
+
+    owner_fu=False (스케줄 run 등): 담당자 멘션·담당자 배정 표기를 빼고 실패 URL + 에러
+    발췌만 남긴다 — 자동 스케줄 실패는 담당자를 상시 핑하지 않고, 필요 시 Triage 버튼
+    (Failure)으로 쓰레드 멘션한다.
     """
     if not job_run_id:
         return ""
@@ -381,11 +394,25 @@ def _build_followup_for_job_run(job_run_id: Optional[str], context_label_extra: 
             if m.owner is not None and _names_for_status(m.owner, m.status_code)
         ]
 
-        excerpt = excerpt_error(error_log, max_chars=1000)
+        excerpt = excerpt_error(error_log, max_chars=2000)
         base = _base_url()
         portal_log_url = (
             f"{base}/suites/job-runs/{jr.pk}/error-log/" if base else ""
         )
+
+        if not owner_fu:
+            # 스케줄 run — 담당자 F/U(멘션·담당자 배정) 없이 실패 URL + 에러 발췌만.
+            matches_for_text = [
+                {"url": m.url, "method": m.method, "status_code": m.status_code, "owner": None}
+                for m in matched
+            ][:5]
+            return build_error_followup_text(
+                matches=matches_for_text,
+                error_excerpt=excerpt,
+                portal_log_url=portal_log_url,
+                context_label=context_label_extra,
+                mention_text="",
+            )
 
         if owners_with_status:
             # 정상 경로 — 매칭된 owner 에게 멘션
@@ -444,18 +471,25 @@ def _build_followup_for_job_run(job_run_id: Optional[str], context_label_extra: 
         return ""
 
 
-def _post_message(channel: str, text: str, attachment: Optional[dict] = None) -> bool:
+def _do_post(channel: str, text: str, attachments: Optional[list] = None,
+             blocks: Optional[list] = None) -> Optional[dict]:
+    """chat.postMessage 실행 → Slack 응답 dict(ok/ts/channel) 반환, 실패 시 None.
+
+    ts/channel 이 필요한 경로(실패 알림 버튼 — 이후 chat.update)에서 사용.
+    """
     token = _bot_token()
     if not token:
         logger.warning("Slack 알림 전송 스킵 — SLACK_BOT_TOKEN 미설정")
-        return False
+        return None
     if not channel:
         logger.warning("Slack 알림 전송 스킵 — channel 미지정")
-        return False
+        return None
 
     payload = {"channel": channel, "text": text}
-    if attachment is not None:
-        payload["attachments"] = [attachment]
+    if attachments:
+        payload["attachments"] = attachments
+    if blocks:
+        payload["blocks"] = blocks
 
     body_bytes = json.dumps(payload).encode("utf-8")
     req = Request(
@@ -472,24 +506,70 @@ def _post_message(channel: str, text: str, attachment: Optional[dict] = None) ->
             raw = resp.read()
     except HTTPError as exc:
         logger.warning("Slack 알림 HTTP 오류: %s %s", exc.code, exc.reason)
-        return False
+        return None
     except URLError as exc:
         logger.warning("Slack 알림 전송 실패 (network): %s", exc)
-        return False
+        return None
     except Exception as exc:  # noqa: BLE001
         logger.warning("Slack 알림 전송 실패: %s", exc)
-        return False
+        return None
 
     try:
         body = json.loads(raw.decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
         logger.warning("Slack 알림 응답 JSON 파싱 실패: %s", raw[:200])
-        return False
+        return None
 
     if not body.get("ok"):
         logger.warning("Slack 알림 응답 오류: %s", body.get("error") or body)
-        return False
-    return True
+        return None
+    return body
+
+
+def _post_message(channel: str, text: str, attachment: Optional[dict] = None) -> bool:
+    """기존 시그니처(bool) 유지 — 단일 attachment 발송."""
+    resp = _do_post(channel, text, attachments=[attachment] if attachment is not None else None)
+    return bool(resp)
+
+
+def build_suite_fail_payload(suite_run, ctx: Optional[dict] = None) -> tuple:
+    """실패 알림(Triage 버튼 포함) 메시지 payload — (text, blocks). 발송·chat.update 공용.
+
+    기존 `_suite_event_fields` 필드를 blocks(section)로 렌더 + 실패 Job 별 버튼(triage).
+    """
+    ctx = ctx or {}
+    _toggle, _color, emoji, label = _EVENT_META.get(E.SUITE_RUN_FAILED)
+    suite = getattr(suite_run, "suite", None)
+    suite_name = suite.name if suite else "?"
+
+    fields = _suite_event_fields(E.SUITE_RUN_FAILED, suite_run, ctx)
+    error_message = ctx.get("error_message")
+    if error_message:
+        snippet = str(error_message)
+        if len(snippet) > 500:
+            snippet = snippet[:500] + "..."
+        fields.append({"title": "오류", "value": snippet, "short": False})
+
+    text = f"{label} — {suite_name}"
+    blocks: list = [{"type": "section", "text": {"type": "mrkdwn",
+        "text": f"{emoji} *{label}* — `{suite_name}`"}}]
+    short_pairs = [f for f in fields if f.get("short")]
+    long_fields = [f for f in fields if not f.get("short")]
+    for i in range(0, len(short_pairs), 10):
+        blocks.append({"type": "section", "fields": [
+            {"type": "mrkdwn", "text": f"*{f['title']}*\n{f['value']}"}
+            for f in short_pairs[i:i + 10]]})
+    for f in long_fields:
+        # Slack section block text 는 3000자 한도 — 초과 시 안전하게 자른다.
+        section_text = f"*{f['title']}*\n{f['value']}"
+        if len(section_text) > 2900:
+            section_text = section_text[:2900] + "\n…(생략)"
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": section_text}})
+
+    from .triage import build_triage_blocks, build_schedule_action_blocks
+    blocks.extend(build_triage_blocks(suite_run))
+    blocks.extend(build_schedule_action_blocks(suite_run))  # 스케줄 run 이면 중단/재활성화 버튼
+    return text, blocks
 
 
 def send_test_message(channel: Optional[str] = None) -> tuple[bool, str]:
@@ -612,6 +692,20 @@ def send_suite_run_event(event_type: str, suite_run, **ctx) -> bool:
     if not channel:
         return False
 
+    # 실패 알림 + Triage 버튼(opt-in). blocks 로 발송하고 ts/channel 을 저장해 두어
+    # 이후 버튼 클릭 시 chat.update 로 '처리됨' 을 반영한다.
+    from .triage import triage_buttons_enabled
+    if event_type == E.SUITE_RUN_FAILED and triage_buttons_enabled():
+        text, blocks = build_suite_fail_payload(suite_run, ctx)
+        resp = _do_post(channel, text, blocks=blocks)
+        if not resp:
+            return False
+        ts, ch = resp.get("ts"), resp.get("channel")
+        if ts and ch:
+            type(suite_run).objects.filter(pk=suite_run.pk).update(
+                slack_message_ts=str(ts), slack_channel_id=str(ch))
+        return True
+
     suite = getattr(suite_run, "suite", None)
     suite_name = suite.name if suite else "?"
     title = f"{emoji} *{label}* — `{suite_name}`"
@@ -655,5 +749,143 @@ def send_suite_run_event_async(event_type: str, suite_run, **ctx) -> None:
             send_suite_run_event(event_type, fresh, **ctx)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Slack 비동기 알림 (suite) 실패 (%s): %s", event_type, exc)
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+# ---------------------------------------------------------------------------
+# UI Test Automation (TAP) Run 알림 — PRD docs/prd_ui_test_automation.md
+# ---------------------------------------------------------------------------
+
+def _ui_owner_mentions() -> str:
+    """UI 알림 담당자(`UiAutomationOwners`) → Slack 멘션 문자열. 미설정/실패 시 "".
+
+    TAP 케이스는 API URL 매칭 개념 밖이라 `ApiEndpointOwner` 매칭이 성립하지
+    않는다 — 담당자 관리 > UI 탭에 통으로 설정한 담당자를 그대로 멘션한다.
+    멘션 실패가 FAIL 알림 자체를 막지 않도록 silent.
+    """
+    try:
+        from apps.integrations.models import UiAutomationOwners
+        from .owner_mentions import mentions_from_names
+
+        mention_text, _unresolved = mentions_from_names(UiAutomationOwners.get_solo().names())
+        return mention_text
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("UI 알림 담당자 멘션 빌드 실패: %s", exc)
+        return ""
+
+
+def send_tap_run_event(event_type: str, tap_run) -> bool:
+    """TAP(UI Test Automation) Run 알림 — TapRun 을 받는다.
+
+    토글/채널/토큰 처리는 suite run 알림과 동일. 본문은 케이스 수 기준
+    (Jenkins 잡 개념 없음). FAILED 는 실패 케이스 목록(최대 5, TestRail 링크)
+    을 포함하고, 담당자 관리 > UI 탭의 담당자(`UiAutomationOwners`)를 메시지
+    본문(top-level text)에 멘션한다 — Suite/케이스 구분 없이 통으로, Reliability
+    스케줄 실행 포함. (API Suite 처럼 URL→ApiEndpointOwner 매칭은 하지 않음.)
+    """
+    meta = _EVENT_META.get(event_type)
+    if meta is None:
+        return False
+    toggle_field, color, emoji, label = meta
+
+    settings_obj = SlackNotificationSettings.get_solo()
+    if not settings_obj.enabled:
+        return False
+    if not getattr(settings_obj, toggle_field, False):
+        return False
+    channel = _resolve_channel(settings_obj)
+    if not channel:
+        return False
+
+    suite = tap_run.tap_suite
+    title = f"{emoji} *{label}* — `{suite.name}`"
+    if event_type == E.TAP_RUN_FAILED:
+        mention_text = _ui_owner_mentions()
+        if mention_text:
+            title += f"\n*담당자 F/U* {mention_text}"
+
+    fields = [
+        {"title": "Suite", "value": f"{suite.name} ({suite.project_name})", "short": True},
+        {"title": "환경", "value": tap_run.run_env or "-", "short": True},
+    ]
+    if tap_run.robustness_schedule_id:
+        fields.append({"title": "실행", "value": "Reliability 스케줄(자동)", "short": True})
+    elif tap_run.triggered_by:
+        fields.append({"title": "실행자", "value": str(tap_run.triggered_by), "short": True})
+
+    if event_type == E.TAP_RUN_STARTED:
+        excluded = len(tap_run.excluded_case_ids or [])
+        val = f"{tap_run.total_cases}개"
+        if excluded:
+            val += f" (자동화 스크립트 없는 {excluded}개 제외)"
+        fields.append({"title": "케이스", "value": val, "short": True})
+    else:
+        fields.append({
+            "title": "결과",
+            "value": (f"PASS {tap_run.passed} / FAIL {tap_run.failed}"
+                      + (f" / 기타 {tap_run.others}" if tap_run.others else "")
+                      + f" / 총 {tap_run.total_cases}"),
+            "short": True,
+        })
+        if tap_run.started_at and tap_run.finished_at:
+            secs = int((tap_run.finished_at - tap_run.started_at).total_seconds())
+            fields.append({"title": "소요 시간", "value": f"{secs // 60}분 {secs % 60}초", "short": True})
+        if tap_run.status == "error":
+            fields.append({
+                "title": "사유",
+                "value": "실행 오류 또는 interval 타임아웃 마감 — 미판정 케이스는 실패로 집계",
+                "short": False,
+            })
+
+    if event_type == E.TAP_RUN_FAILED:
+        failed_cases = [
+            c for c in (tap_run.raw_cases_json or [])
+            if str(c.get("status", "")).lower() in ("failed", "error")
+        ][:5]
+        if failed_cases:
+            lines = []
+            for c in failed_cases:
+                t = c.get("title", "?")
+                url = c.get("testrail_url")
+                lines.append(f"• <{url}|{t}>" if url else f"• {t}")
+            more = tap_run.failed - len(failed_cases)
+            if more > 0:
+                lines.append(f"• 외 {more}건")
+            fields.append({"title": "실패 케이스", "value": "\n".join(lines), "short": False})
+
+    links = []
+    base = _base_url()
+    if base:
+        links.append(f"<{base}/suites/tap-runs/{tap_run.pk}/|포털 상세>")
+    if tap_run.tap_url:
+        links.append(f"<{tap_run.tap_url}|TAP 에서 보기>")
+    if links:
+        fields.append({"title": "링크", "value": " · ".join(links), "short": False})
+
+    attachment = {
+        "color": color,
+        "fields": fields,
+        "fallback": f"{label} — {suite.name}",
+        "mrkdwn_in": ["fields"],
+    }
+    return _post_message(channel, title, attachment)
+
+
+def send_tap_run_event_async(event_type: str, tap_run) -> None:
+    """`send_tap_run_event` 의 비동기 wrapper — 발송이 폴링/트리거를 막지 않게."""
+    tap_run_pk = getattr(tap_run, "pk", None)
+    if tap_run_pk is None:
+        return
+
+    def _worker():
+        try:
+            from apps.suites.models import TapRun
+            fresh = TapRun.objects.select_related(
+                "tap_suite", "triggered_by",
+            ).get(pk=tap_run_pk)
+            send_tap_run_event(event_type, fresh)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Slack 비동기 알림 (tap) 실패 (%s): %s", event_type, exc)
 
     threading.Thread(target=_worker, daemon=True).start()

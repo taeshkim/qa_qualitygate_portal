@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Quality Highway — Live Race Control{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/qg_highway.css' %}?v=20260727a">
+{% endblock %}
+
+{% block content %}
+<section class="hw-command" aria-labelledby="hw-page-title">
+    <header class="hw-command-header">
+        <div class="hw-title-lockup">
+            <div class="hw-eyebrow">
+                <span class="hw-eyebrow-rule" aria-hidden="true"></span>
+                Quality Operations / Live Circuit
+            </div>
+            <h1 id="hw-page-title">QUALITY <span>HIGHWAY</span></h1>
+            <p>모든 테스트 실행이 한 대의 머신이 되어 품질 서킷을 통과합니다.</p>
+        </div>
+
+        <div class="hw-session-console" aria-label="라이브 피드 상태">
+            <div class="hw-live-pill" id="hw-link-status">
+                <span class="hw-live-beacon" aria-hidden="true"></span>
+                <span id="hw-link-label">CONNECTING</span>
+            </div>
+            <div class="hw-session-copy">
+                <span>TELEMETRY SYNC</span>
+                <strong id="hw-last-sync">INITIALIZING…</strong>
+            </div>
+            <button type="button" class="hw-icon-button" id="hw-pause" aria-pressed="false" aria-label="애니메이션 일시정지" title="애니메이션 일시정지">
+                <i class="fas fa-pause" aria-hidden="true"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="hw-command-grid">
+        <div class="hw-arena-panel">
+            <div class="hw-panel-rail" aria-hidden="true">
+                <div><span>QG-CIRCUIT</span><strong>SECTOR 07</strong></div>
+                <div class="hw-rail-center"><i></i><i></i><i></i><i></i><i></i></div>
+                <div><span>GRID STATUS</span><strong class="hw-safe">NOMINAL</strong></div>
+            </div>
+
+            <div class="hw-stage" id="hw-stage">
+                <canvas
+                    id="qg-highway"
+                    tabindex="0"
+                    role="img"
+                    aria-label="최근 Test Suite 실행을 차량으로 표현한 실시간 품질 고속도로. 좌우 방향키로 차량을 선택하고 Enter 키로 상세 실행을 열 수 있습니다."
+                >브라우저가 Canvas를 지원하지 않습니다. Suite Runs 화면에서 실행 이력을 확인해 주세요.</canvas>
+
+                <div class="hw-stage-chrome" aria-hidden="true">
+                    <span class="hw-corner hw-corner-tl"></span>
+                    <span class="hw-corner hw-corner-tr"></span>
+                    <span class="hw-corner hw-corner-bl"></span>
+                    <span class="hw-corner hw-corner-br"></span>
+                    <div class="hw-scanline"></div>
+                    <div class="hw-stage-meta hw-stage-meta-left">
+                        <span>LIVE</span>
+                        <b>TEST SUITE TELEMETRY</b>
+                    </div>
+                    <div class="hw-stage-meta hw-stage-meta-right">
+                        <span>REFRESH</span>
+                        <b>06.0 SEC</b>
+                    </div>
+                </div>
+
+                <div id="hw-empty" class="hw-empty" role="status">
+                    <div class="hw-empty-mark" aria-hidden="true">
+                        <i class="fas fa-flag-checkered"></i>
+                    </div>
+                    <strong>THE GRID IS CLEAR</strong>
+                    <span>Test Suite를 실행하면 첫 번째 머신이 출발합니다.</span>
+                </div>
+
+                <div class="hw-stage-instruction" aria-hidden="true">
+                    <i class="fas fa-computer-mouse"></i>
+                    차량을 선택하면 Run 상세로 이동
+                </div>
+            </div>
+
+            <div class="hw-track-footer">
+                <div class="hw-track-coordinate"><span>TRACK</span><strong>QH / 37° 33′ N</strong></div>
+                <div class="hw-track-progress" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                <div class="hw-track-coordinate hw-track-coordinate-right"><span>MODE</span><strong id="hw-motion-mode">FULL MOTION</strong></div>
+            </div>
+        </div>
+
+        <aside class="hw-telemetry-panel" aria-label="품질 서킷 텔레메트리">
+            <div class="hw-side-heading">
+                <div>
+                    <span>LIVE CLASSIFICATION</span>
+                    <h2>Race Control</h2>
+                </div>
+                <i class="fas fa-wave-square" aria-hidden="true"></i>
+            </div>
+
+            <div class="hw-classification" aria-live="polite" aria-atomic="true">
+                <article class="hw-class-card hw-class-pass">
+                    <div class="hw-class-icon"><i class="fas fa-circle-check"></i></div>
+                    <div><span>PASS / CLEARED</span><strong id="hw-stat-pass">0</strong></div>
+                    <small>clean finish</small>
+                </article>
+                <article class="hw-class-card hw-class-running">
+                    <div class="hw-class-icon"><i class="fas fa-bolt"></i></div>
+                    <div><span>RUNNING / LIVE</span><strong id="hw-stat-running">0</strong></div>
+                    <small>on circuit</small>
+                </article>
+                <article class="hw-class-card hw-class-skip">
+                    <div class="hw-class-icon"><i class="fas fa-forward-step"></i></div>
+                    <div><span>SKIP / PIT</span><strong id="hw-stat-skip">0</strong></div>
+                    <small>pit classified</small>
+                </article>
+                <article class="hw-class-card hw-class-fail">
+                    <div class="hw-class-icon"><i class="fas fa-triangle-exclamation"></i></div>
+                    <div><span>FAIL / INCIDENT</span><strong id="hw-stat-fail">0</strong></div>
+                    <small>recovery active</small>
+                </article>
+            </div>
+
+            <div class="hw-total-strip">
+                <span>SESSION ENTRIES</span>
+                <strong id="hw-stat-total">00</strong>
+                <small>latest runs</small>
+            </div>
+
+            <div class="hw-feed-block">
+                <div class="hw-block-title">
+                    <span>LATEST TRANSMISSIONS</span>
+                    <i class="fas fa-satellite-dish" aria-hidden="true"></i>
+                </div>
+                <ol id="hw-feed" class="hw-feed-list">
+                    <li class="hw-feed-placeholder">Awaiting circuit data…</li>
+                </ol>
+            </div>
+
+            <div class="hw-legend-panel">
+                <div><i class="hw-legend-line hw-legend-pass"></i><span><b>PASS</b> 결승선을 통과합니다.</span></div>
+                <div><i class="hw-legend-line hw-legend-running"></i><span><b>RUNNING</b> 점멸등으로 추적됩니다.</span></div>
+                <div><i class="hw-legend-line hw-legend-skip"></i><span><b>SKIP</b> 사고 없이 피트로 이탈합니다.</span></div>
+                <div><i class="hw-legend-line hw-legend-fail"></i><span><b>FAIL</b> 사고 후 리커버리됩니다.</span></div>
+            </div>
+
+            <a href="{% url 'suites:run_list' %}" class="hw-archive-link">
+                <span><small>FULL SESSION ARCHIVE</small>모든 Suite Run 보기</span>
+                <i class="fas fa-arrow-right-long" aria-hidden="true"></i>
+            </a>
+        </aside>
+    </div>
+
+    <p class="hw-a11y-note" id="hw-announcer" aria-live="polite"></p>
+</section>
+
+<div id="hw-tip" class="hw-tip" role="tooltip" aria-hidden="true"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/qg_highway.js' %}?v=20260714a"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        document.body.classList.add('visualization-page');
+        QGHighway.init({
+            canvasId: 'qg-highway',
+            tipId: 'hw-tip',
+            emptyId: 'hw-empty',
+            stageId: 'hw-stage',
+            dataUrl: '{% url "visualization:data" %}',
+            runUrlTemplate: "{% url 'suites:run_detail' pk='00000000-0000-0000-0000-000000000000' %}",
+            backgroundUrl: "{% static 'images/visualization/highway-command-bg.webp' %}?v=20260714a",
+            pollMs: 6000,
+        });
+    });
+</script>
+{% endblock %}

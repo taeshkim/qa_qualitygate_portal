@@ -14,6 +14,7 @@ Phase D-1 리팩토링: `views.py` 의 action 함수들을 외부 API (예: api_
 views.py 가 이 모듈을 import 하므로 순환을 피하기 위함.
 """
 
+import copy
 import hashlib
 import logging
 from typing import Optional
@@ -121,6 +122,7 @@ def trigger_gate_run(
     for i, gs in enumerate(gate_suites):
         QualityGateRunTest.objects.create(
             gate_run=run, gate_suite=gs, order=i,
+            retry_limit=max(1, gs.test_suite.retry_count),
         )
 
     ActivityLog.log(
@@ -315,7 +317,8 @@ def rerun_test(*, run: QualityGateRun, user) -> QualityGateRun:
         tr.job_run = None
         tr.started_at = None
         tr.completed_at = None
-        tr.save(update_fields=["status", "job_run", "started_at", "completed_at"])
+        tr.attempt = 1  # 수동 재실행은 새 사이클 — 자동 재시도 횟수를 초기화
+        tr.save(update_fields=["status", "job_run", "started_at", "completed_at", "attempt"])
         reset_count += 1
 
     if gate.parallel_test:
@@ -343,9 +346,38 @@ def rerun_test(*, run: QualityGateRun, user) -> QualityGateRun:
 # =============================================
 # trigger_deploy
 # =============================================
+def _validate_app_image_param(parameters: dict) -> None:
+    """APP_IMAGE 파라미터가 전달됐을 때 빈값/깨진 태그를 차단한다.
+
+    - APP_IMAGE 키 자체가 없으면 통과 (Jenkins 플러그인 default 사용 — d6652f1 의도).
+    - 값이 비어있거나 공백만인 경우 → 거부.
+    - 값이 콜론으로 끝나는 경우 (tag 누락 패턴, 예: "registry/img:") → 거부.
+    """
+    if not parameters:
+        return
+    if "APP_IMAGE" not in parameters:
+        return
+    value = parameters["APP_IMAGE"]
+    stripped = (value or "").strip()
+    if not stripped:
+        raise GateRunError(
+            "invalid_app_image",
+            "APP_IMAGE 가 비어있거나 태그가 누락됐습니다. 모달에서 올바른 이미지를 선택하세요.",
+            http_status=400,
+        )
+    if stripped.endswith(":"):
+        raise GateRunError(
+            "invalid_app_image",
+            "APP_IMAGE 가 비어있거나 태그가 누락됐습니다. 모달에서 올바른 이미지를 선택하세요.",
+            http_status=400,
+        )
+
+
 def trigger_deploy(*, run: QualityGateRun, user, parameters: dict) -> QualityGateRun:
     """검수대상 배포 트리거 (WAITING_DEPLOY 또는 DEPLOY_FAILED 재시도)."""
     gate = run.gate
+
+    _validate_app_image_param(parameters)
 
     allowed = (QualityGateRun.Status.WAITING_DEPLOY, QualityGateRun.Status.DEPLOY_FAILED)
     if run.status not in allowed:
@@ -417,6 +449,8 @@ def trigger_deploy(*, run: QualityGateRun, user, parameters: dict) -> QualityGat
 def trigger_prod(*, run: QualityGateRun, user, parameters: dict) -> QualityGateRun:
     """검수통과 배포 트리거 (QG_PASSED 또는 PROD_DEPLOY_FAILED 재시도)."""
     gate = run.gate
+
+    _validate_app_image_param(parameters)
 
     allowed = (QualityGateRun.Status.QG_PASSED, QualityGateRun.Status.PROD_DEPLOY_FAILED)
     if run.status not in allowed or not gate.has_prod_deploy:
@@ -553,6 +587,7 @@ def get_job_param_schema(
     *,
     refresh: bool = False,
     image_build_number: Optional[int] = None,
+    run=None,
 ):
     """게이트의 Jenkins Job 파라미터 스키마를 반환.
 
@@ -560,8 +595,9 @@ def get_job_param_schema(
     - stage='deploy' → deploy_job_path
     - stage='prod'   → prod_job_path (없으면 빈 parameters)
     - 120초 캐시 (gate.pk + target_job 키), `refresh=True` 면 캐시 무시
-    - prod 단계는 APP_IMAGE choices 중 `{image_build_number}-` 로 시작하는 항목을
-      default 로 강제 (기존 prod_deploy_params 동작과 동일).
+    - run 이 주어지면 deploy/prod 단계에서 콘솔 추출 태그(resolve_and_apply_app_image)
+      를 사용. run 이 None 이면 기존 prefix 방식(_apply_app_image_default) 유지.
+    - api_v2 meta.py 는 run 없이 호출 → 기존 동작 완전 무파괴.
 
     반환: (parameters: list, cached: bool)
     Jenkins 통신 실패 → GateRunError(code='jenkins_error', http_status=502).
@@ -606,8 +642,12 @@ def get_job_param_schema(
     if not refresh:
         cached = cache.get(cache_key)
         if cached is not None:
-            params = list(cached)
-            if stage == "prod" and image_build_number:
+            # APP_IMAGE in-place 수정이 캐시 원본을 오염시키지 않도록 deep copy.
+            # (LocMemCache 는 get 시 deepcopy 하지만 Redis/Memcached 백엔드 대비 명시)
+            params = copy.deepcopy(cached)
+            if run is not None and stage in ("deploy", "prod"):
+                resolve_and_apply_app_image(params, run)
+            elif stage == "prod" and image_build_number:
                 _apply_app_image_default(params, image_build_number)
             return params, True
 
@@ -621,13 +661,23 @@ def get_job_param_schema(
     parameters = info.get("parameters", [])
     cache.set(cache_key, parameters, timeout=120)
 
-    if stage == "prod" and image_build_number:
+    if run is not None and stage in ("deploy", "prod"):
+        resolve_and_apply_app_image(parameters, run)
+    elif stage == "prod" and image_build_number:
         _apply_app_image_default(parameters, image_build_number)
     return parameters, False
 
 
-def _apply_app_image_default(parameters: list, image_build_number: int) -> None:
-    """parameters 안의 APP_IMAGE 항목 default 를 build 번호 prefix 로 덮어쓴다."""
+def _apply_app_image_default(parameters: list, image_build_number) -> bool:
+    """parameters 안 APP_IMAGE 의 default 를 build 번호 prefix 매칭으로 덮어쓴다.
+
+    콘솔 추출 없이 choices 의 ``{image_build_number}-`` prefix 매칭만 하는 단순
+    폴백 버전. 매칭 항목을 찾아 default 로 설정하면 True, 아니면 False.
+    (prefix 매칭 로직의 단일 진실원 — resolve_and_apply_app_image 폴백/
+     views._override_app_image_default 가 모두 이 함수에 위임한다.)
+    """
+    if not image_build_number:
+        return False
     prefix = f"{image_build_number}-"
     for p in parameters:
         if p.get("name") != "APP_IMAGE":
@@ -635,5 +685,51 @@ def _apply_app_image_default(parameters: list, image_build_number: int) -> None:
         for c in (p.get("choices") or []):
             if isinstance(c, str) and c.startswith(prefix):
                 p["default"] = c
-                break
-        break
+                return True
+        return False
+    return False
+
+
+def resolve_and_apply_app_image(
+    parameters: list,
+    run,
+    *,
+    repo_hint=None,
+) -> bool:
+    """콘솔 추출 태그로 APP_IMAGE default+choices 를 주입한다.
+
+    Args:
+        parameters: get_job_info 로 받은 파라미터 리스트 (in-place 수정).
+        run: QualityGateRun 인스턴스.
+        repo_hint: ECR repo 경로 힌트 (멀티모듈 대비, 보통 None 으로 충분).
+
+    Returns:
+        True  — APP_IMAGE 없거나 태그 주입/발견 성공.
+        False — 콘솔 추출 실패 + 기존 choices prefix 매칭도 없음.
+    """
+    from apps.integrations.jenkins import extract_pushed_image_tag as _extract
+
+    # APP_IMAGE 파라미터가 없으면 무관 → True
+    param = next((p for p in parameters if p.get("name") == "APP_IMAGE"), None)
+    if param is None:
+        return True
+
+    image_build_number = getattr(run, "image_build_number", None)
+
+    # 콘솔에서 정확한 태그 추출
+    tag = _extract(
+        getattr(run, "image_console_output", None),
+        image_build_number,
+        repo_hint,
+    )
+
+    if tag:
+        param["default"] = tag
+        existing = list(param.get("choices") or [])
+        if tag not in existing:
+            param["choices"] = [tag] + existing
+        return True
+
+    # 폴백: choices 에 build_number prefix 항목이 있으면 그걸 default 로
+    # (prefix 매칭은 _apply_app_image_default 에 위임 — 단일 진실원)
+    return _apply_app_image_default(parameters, image_build_number)

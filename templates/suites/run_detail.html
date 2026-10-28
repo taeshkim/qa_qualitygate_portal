@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}{{ suite_run.suite.name }} - Quality Gate Portal{% endblock %}
+{% block title %}{{ suite_run.suite.name }}{% if suite_run.seq_no %} #{{ suite_run.seq_no }}{% endif %} - Quality Gate Portal{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>Suite Run: {{ suite_run.suite.name }}</h1>
+    <h1>Suite Run: {{ suite_run.suite.name }}{% if suite_run.seq_no %} <span class="text-muted mono" style="font-size:0.75em">#{{ suite_run.seq_no }}</span>{% endif %}</h1>
     <div style="display:flex;gap:8px;align-items:center">
         <a href="{% url 'suites:suite_detail' suite_run.suite.pk %}" class="btn btn-secondary">
             <i class="fas fa-arrow-left"></i> Back to Suite

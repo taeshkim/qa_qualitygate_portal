@@ -80,26 +80,40 @@
                 {% for jr in job_runs %}
                 <tr>
                     <td>{{ forloop.counter }}</td>
-                    <td><strong>{{ jr.job.job_name }}</strong></td>
+                    <td>
+                        <strong>{{ jr.job.job_name }}</strong>
+                        {% if suite_run.retry_limit > 1 or jr.attempt > 1 %}
+                        <span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:var(--gray-200,#e5e7eb);color:var(--gray-600,#4b5563);vertical-align:middle">재시도 {{ jr.attempt }}/{{ suite_run.retry_limit }}</span>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if jr.status == "success" %}
                         <span class="status-badge status-pass">SUCCESS</span>
-                        {% elif jr.status == "failure" %}
-                        <span class="status-badge status-fail">FAILURE</span>
+                        {% elif jr.status == "failure" or jr.status == "aborted" %}
+                            {% if jr.verdict == "skip" %}
+                            <span class="status-badge status-na" title="Slack Triage — 자동화 판정 오류 의심 및 자동화 코드 이슈 추정으로 Skip 분류{% if jr.triaged_by %} · {{ jr.triaged_by }}{% endif %}">⏭️ SKIP</span>
+                            {% elif jr.verdict == "failure" %}
+                            <span class="status-badge status-fail" title="Slack Triage — 실제 장애로 분류{% if jr.triaged_by %} · {{ jr.triaged_by }}{% endif %}">🔴 FAILURE</span>
+                            {% elif jr.status == "aborted" %}
+                            <span class="status-badge status-na">Aborted</span>
+                            {% else %}
+                            <span class="status-badge status-fail" title="미분류 — Slack Failure/Skip 버튼으로 분류 대기">FAIL</span>
+                            {% endif %}
                         {% elif jr.status == "running" %}
                         <span class="status-badge status-running">Running</span>
                         {% elif jr.status == "queued" %}
                         <span class="status-badge status-running">Queued</span>
-                        {% elif jr.status == "aborted" %}
-                        <span class="status-badge status-na">Aborted</span>
+                        {% elif jr.status == "waiting" %}
+                        <span class="status-badge status-na" title="실행 지연 대기 — 직전 잡 트리거 후 설정된 지연시간이 지나면 자동 실행">지연 대기</span>
                         {% else %}
                         <span class="status-badge status-na">Waiting</span>
                         {% endif %}
                     </td>
                     <td>
-                        {% if jr.stages_json %}
+                        {% if jr.display_stages_json %}
                         <div class="stage-pipeline">
-                            {% for stage in jr.stages_json %}
+                            {# dot 은 카운트(stages_total)와 동일하게 display_stages_json 순회 — NOT_EXECUTED(when{} skip) 제외해 동그라미 갯수 = X/Y 의 Y 와 일치. QG 화면과 동일 패턴. #}
+                            {% for stage in jr.display_stages_json %}
                             <span class="stage-dot stage-{{ stage.status|lower }}"
                                   title="{{ forloop.counter }}. {{ stage.name }} ({{ stage.status }}){% if stage.duration_ms %} - {{ stage.duration_ms|floatformat:0 }}ms{% endif %}">
                             </span>
@@ -117,6 +131,8 @@
                         </div>
                         {% elif jr.status == "queued" %}
                         <span class="text-muted">Waiting...</span>
+                        {% elif jr.status == "waiting" %}
+                        <span class="text-muted">지연 대기...</span>
                         {% elif jr.status == "pending" %}
                         <span class="text-muted">-</span>
                         {% else %}

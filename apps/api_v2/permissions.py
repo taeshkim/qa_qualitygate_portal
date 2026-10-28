@@ -76,6 +76,52 @@ class AdminOnlyForWildcard(permissions.BasePermission):
         return True
 
 
+class ExportPermission(permissions.BasePermission):
+    """`/api/v2/export/` 전용 — API Key 필수 + `export:read` 명시 스코프 + 키 소유자 admin.
+
+    - 세션 인증은 허용하지 않는다 (뷰에서 ApiKeyAuthentication 만 사용).
+    - `*` 와일드카드는 export:read 를 포함하지 않는다 (`scopes.has_scope` 의 EXPLICIT_ONLY_SCOPES).
+    - 소유자가 admin(qpe_admin/superuser) 이 아니면 스코프가 있어도 403 role_denied.
+      (요청 시점에 소유자 역할을 다시 본다 — 발급 후 강등된 키도 차단.)
+    """
+
+    message = "scope_required"
+
+    def has_permission(self, request, view):
+        if not _is_authenticated(request):
+            return False
+        api_key = getattr(request, "auth", None)
+        if api_key is None or not api_key.has_scope(_scopes.EXPORT_READ):
+            self.message = "scope_required"
+            return False
+        if not getattr(request.user, "is_admin", False):
+            self.message = "role_denied"
+            return False
+        return True
+
+
+class OwnersManagePermission(permissions.BasePermission):
+    """`/api/v2/owners/` 전용 — API Key 필수 + `owners:manage` 명시 스코프 + 키 소유자 admin.
+
+    UI 의 담당자 관리(`/accounts/api-owners/`)가 admin 전용이므로 API 도 같은 기준이다.
+    `*` 와일드카드는 owners:manage 를 포함하지 않는다. 요청 시점에 소유자 역할을 다시 본다.
+    """
+
+    message = "scope_required"
+
+    def has_permission(self, request, view):
+        if not _is_authenticated(request):
+            return False
+        api_key = getattr(request, "auth", None)
+        if api_key is None or not api_key.has_scope(_scopes.OWNERS_MANAGE):
+            self.message = "scope_required"
+            return False
+        if not getattr(request.user, "is_admin", False):
+            self.message = "role_denied"
+            return False
+        return True
+
+
 # 자주 쓰는 조합
 ReadPermissions = [HasScope]
 WritePermissions = [HasScope, CanWriteForControl, AdminOnlyForWildcard]

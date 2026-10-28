@@ -23,6 +23,34 @@
                    value="{{ suite.jenkins_folder_path }}" required>
             <small class="text-muted">Jenkins URL을 그대로 붙여넣어도 됩니다.</small>
         </div>
+        <div class="form-group">
+            <label for="retry_count">재시도 횟수</label>
+            <input type="number" name="retry_count" id="retry_count" min="1" step="1"
+                   value="{{ suite.retry_count }}" class="form-input" required>
+            <small class="text-muted">잡 1개의 최대 실행 횟수. 1 = 재시도 없음(1번 실패 시 오류), 3 = 실패 시 최대 3번까지 실행 후 모두 실패해야 오류. 단독 실행·Quality Gate·Reliability Test 에 모두 적용됩니다.</small>
+        </div>
+
+        <fieldset style="border:1px solid var(--border,#ddd);padding:12px;border-radius:6px;margin-bottom:16px">
+            <legend style="padding:0 6px;font-size:0.9rem;color:var(--text-muted,#666)">잡별 실행 지연 시간(초)</legend>
+            <small class="text-muted" style="display:block;margin-bottom:10px">
+                각 잡을 트리거하기 직전, <strong>직전에 트리거된 잡으로부터</strong> 이 시간이 지나야 실행됩니다.
+                그 전이면 잡은 "지연 대기" 상태로 보류되고 다음 폴링에서 자동 재시도됩니다.
+                동시에 여러 API 를 쏠 때 Jenkins 가 꼬이는 것을 막기 위한 <strong>전역 순차 throttle</strong> 이며,
+                단독 실행과 Reliability Test 의 <strong>병렬 실행에서도</strong> 각 잡이 이 간격으로 순차 트리거됩니다.
+                기본 30초, 0 = 지연 없음.
+            </small>
+            {% for job in jobs %}
+            <div class="form-group" style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+                <label for="trigger_delay_{{ job.id }}" style="flex:1;margin:0;font-weight:normal">{{ job.job_name }}</label>
+                <input type="number" name="trigger_delay_{{ job.id }}" id="trigger_delay_{{ job.id }}"
+                       min="0" max="3600" step="1" value="{{ job.trigger_delay_seconds }}"
+                       class="form-input" style="width:120px;flex:none">
+                <span class="text-muted" style="flex:none">초</span>
+            </div>
+            {% empty %}
+            <small class="text-muted">활성 잡이 없습니다. 먼저 Suite 동기화로 잡을 불러오세요.</small>
+            {% endfor %}
+        </fieldset>
 
         {% if suite.is_external %}
         <fieldset style="border:1px solid var(--border,#ddd);padding:12px;border-radius:6px;margin-bottom:16px">

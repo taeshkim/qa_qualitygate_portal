@@ -17,6 +17,7 @@ urlpatterns = [
     path("<uuid:pk>/schedules/stop-all/", views.schedule_stop_all, name="schedule_stop_all"),
     path("<uuid:pk>/schedules/reset-all/", views.schedule_reset_all_stats, name="schedule_reset_all"),
     path("<uuid:pk>/toggle-parallel/", views.test_toggle_parallel, name="test_toggle_parallel"),
+    path("<uuid:pk>/toggle-single/", views.test_toggle_single, name="test_toggle_single"),
 
     path("schedules/<uuid:pk>/start/", views.schedule_start, name="schedule_start"),
     path("schedules/<uuid:pk>/stop/", views.schedule_stop, name="schedule_stop"),

@@ -6,6 +6,10 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
+import os
+import sys
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import IO, Union
@@ -13,6 +17,8 @@ from typing import IO, Union
 from django.db import transaction
 
 from .models import ApiEndpointOwner
+
+logger = logging.getLogger(__name__)
 
 
 # --- 헤더 매핑 (CSV 한국어 헤더 → 모델 필드) ----------------------------------
@@ -331,5 +337,75 @@ def sync_owners_from_google_sheet(
             invalidate_match_cache()
         except Exception:  # pragma: no cover
             pass
+        # 담당자 시트 동기화할 때마다 신규 유저의 slack_user_id 도 자동 백필
+        # (Triage 버튼 권한 매핑용, best-effort — 실패해도 owner 동기화엔 영향 없음).
+        try:
+            from .slack_user_sync import backfill_user_slack_ids
+
+            sres = backfill_user_slack_ids()
+            if sres.get("mapped"):
+                logger.info("slack_user_id 백필: %s명 신규 매핑", sres["mapped"])
+        except Exception as exc:  # pragma: no cover
+            logger.warning("slack_user_id 백필 실패(무시): %s", exc)
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# 역방향 기록 (write-back) — 수동 등록 담당자를 Google Sheet 에 append
+# ---------------------------------------------------------------------------
+# 동기화는 시트→DB 단방향(full mirror) 이지만, 포털에서 수동 등록한 담당자를 팀이
+# 보는 시트에도 남기기 위해 등록 직후 best-effort 로 append 한다. 다음 동기화 때
+# 그 행이 시트에서 다시 읽혀 같은 (method, endpoint) row 가 is_imported=True 로
+# 흡수되므로 중복 row 는 생기지 않는다.
+
+
+def is_owner_writeback_enabled() -> bool:
+    """역방향 기록 on/off — 기본 off(opt-in). 운영에서 `.env` 에
+    `GSHEET_OWNERS_WRITEBACK=1` 로 켠다. (시트 편집 권한 + spreadsheets 스코프 필요.)
+    """
+    return (os.getenv("GSHEET_OWNERS_WRITEBACK", "").strip().lower()
+            in ("1", "true", "yes", "on"))
+
+
+def _is_test_run() -> bool:
+    """테스트 실행 중인지 — 운영 시트에 실수로 쓰지 않기 위한 안전 가드."""
+    return ("test" in sys.argv) or bool(os.getenv("PYTEST_CURRENT_TEST"))
+
+
+def _owner_to_sheet_values(owner: ApiEndpointOwner) -> dict:
+    """ApiEndpointOwner → 시트 컬럼(모델 필드명 키) 값 dict."""
+    return {
+        "repo": owner.repo,
+        "category": owner.category,
+        "area": owner.area,
+        "method": owner.method,
+        "endpoint": owner.endpoint,
+        "fe_owner": owner.fe_owner,
+        "be_owner": owner.be_owner,
+        "mapped_app": owner.mapped_app,
+        "usage_count": owner.usage_count,
+        "step_ids": owner.step_ids,
+    }
+
+
+def writeback_owner_to_sheet_async(owner: ApiEndpointOwner) -> None:
+    """수동 등록 담당자 1건을 Google Sheet 에 역방향 append (비동기·best-effort).
+
+    실패해도 등록 자체엔 영향 없음(로그 warning). off(기본) 거나 테스트 실행 중이면
+    아무것도 안 한다.
+    """
+    if not is_owner_writeback_enabled() or _is_test_run():
+        return
+    values = _owner_to_sheet_values(owner)
+    label = f"{owner.method} {owner.endpoint}"
+
+    def _worker():
+        try:
+            from . import google_sheets
+            google_sheets.append_owner_row(values)
+            logger.info("담당자 시트 역방향 기록 OK: %s", label)
+        except Exception as exc:  # 네트워크/권한/스코프 — 등록은 이미 끝났으므로 silent
+            logger.warning("담당자 시트 역방향 기록 실패 (%s): %s", label, exc)
+
+    threading.Thread(target=_worker, daemon=True).start()

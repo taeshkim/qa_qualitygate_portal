@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from django.urls import reverse
 from rest_framework import serializers
 
 from apps.qualitygates.models import QualityGateRun, QualityGateRunTest
@@ -141,13 +142,12 @@ def _test_run_dict(tr: QualityGateRunTest) -> dict:
 def _console_urls(run) -> dict:
     """이 Run 에 콘솔 데이터가 있는 stage 들의 API 상대 경로. 없는 stage 는 키 자체를 빠뜨림."""
     urls = {}
-    base = f"/api/v2/runs/{run.pk}/console"
     if run.image_stage_present or run.image_console_output:
-        urls["image"] = f"{base}/image/"
+        urls["image"] = reverse("api_v2:run_console", kwargs={"run_id": run.pk, "stage": "image"})
     if run.deploy_build_number or run.deploy_console_output:
-        urls["deploy"] = f"{base}/deploy/"
+        urls["deploy"] = reverse("api_v2:run_console", kwargs={"run_id": run.pk, "stage": "deploy"})
     if run.prod_build_number or run.prod_console_output:
-        urls["prod"] = f"{base}/prod/"
+        urls["prod"] = reverse("api_v2:run_console", kwargs={"run_id": run.pk, "stage": "prod"})
     return urls
 
 
@@ -196,7 +196,7 @@ class QualityGateRunSummarySerializer(serializers.Serializer):
         return _user_dict(obj.triggered_by)
 
     def get_self_url(self, obj):
-        return f"/api/v2/runs/{obj.pk}/"
+        return reverse("api_v2:run_detail", kwargs={"run_id": obj.pk})
 
 
 class QualityGateRunDetailSerializer(serializers.Serializer):
@@ -256,7 +256,7 @@ class QualityGateRunDetailSerializer(serializers.Serializer):
         return _user_dict(obj.triggered_by)
 
     def get_detail_url(self, obj):
-        return f"/qualitygates/runs/{obj.pk}/"
+        return reverse("qualitygates:run_detail", kwargs={"pk": obj.pk})
 
     def get_self_url(self, obj):
-        return f"/api/v2/runs/{obj.pk}/"
+        return reverse("api_v2:run_detail", kwargs={"run_id": obj.pk})

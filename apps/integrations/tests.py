@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 import tempfile
 
-from django.test import TestCase
+from django.test import Client, TestCase
 
 from apps.integrations.models import ApiEndpointOwner, ApiHostMapping
 from apps.integrations.services import import_api_endpoint_owners
@@ -331,6 +331,36 @@ class UrlMatcherTests(TestCase):
         self.assertEqual(r_get.pk, o_get.pk)
         self.assertEqual(r_post.pk, o_post.pk)
 
+    # 4b. 메서드 무관 fallback — 같은 path 가 다른 메서드로만 등록돼 있어도 매칭
+    def test_match_cross_method_fallback(self):
+        # 시트가 GET 으로만 등록한 endpoint.
+        o_get = ApiEndpointOwner.objects.create(
+            repo="AM PC",
+            method="GET",
+            endpoint="${BFF_PERSONAL_URL}/member/users/edit-by-pop-up",
+            be_owner="담당자",
+            is_imported=True,
+        )
+        # POST 로 호출돼도 같은 path 라 GET owner 로 fallback 매칭.
+        r = find_endpoint_owner(
+            "POST", "https://bff-personal.albamon.com/member/users/edit-by-pop-up"
+        )
+        self.assertIsNotNone(r)
+        self.assertEqual(r.pk, o_get.pk)
+
+    # 4c. fallback 은 정확한 메서드가 있으면 양보 — 정확한 매칭이 우선
+    def test_match_exact_method_wins_over_fallback(self):
+        ApiEndpointOwner.objects.create(
+            repo="AM PC", method="GET", endpoint="/shared/endpoint",
+            fe_owner="GET 담당자", is_imported=True,
+        )
+        o_post = ApiEndpointOwner.objects.create(
+            repo="AM PC", method="POST", endpoint="/shared/endpoint",
+            be_owner="POST 담당자", is_imported=True,
+        )
+        r = find_endpoint_owner("POST", "https://x.example.com/shared/endpoint")
+        self.assertEqual(r.pk, o_post.pk)  # GET 으로 fallback 하지 않고 POST 정확 매칭
+
     # 5. 여러 후보 중 specificity 큰 것 선택
     def test_match_picks_longest(self):
         general = ApiEndpointOwner.objects.create(
@@ -495,6 +525,83 @@ class ExtractUrlsTests(TestCase):
         self.assertEqual(results[0].url, "https://a.example.com/x")
         self.assertEqual(results[0].count, 2)
         self.assertEqual(results[1].url, "https://b.example.com/y")
+        self.assertEqual(results[1].count, 1)
+
+    def test_extract_urls_error_url_marker_real_sample(self):
+        """실제 Jenkins 로그(ERROR_URL 마커) — 실패 URL 만 추출 + method/status 보강.
+
+        host-only 변수 라인(`BFF_PERSONAL_URL=https://...`)은 무시돼야 한다.
+        """
+        owner = ApiEndpointOwner.objects.create(
+            repo="AM Web",
+            method="GET",
+            endpoint="${BFF_PERSONAL_URL}/member/users/edit-by-pop-up",
+            be_owner="홍길동",
+            is_imported=True,
+        )
+        text = """
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+❌ [Step] 개인정보 수정 팝업 조회 (prd 전용)
+  ERROR_URL: https://bff-personal.albamon.com/member/users/edit-by-pop-up
+── 직전 흐름 (최근 2 step) ──
+  ✗ 개인회원 로그인 (prd 전용)                    30s                     ← 실패
+── 이 step 이 참조한 변수 ──
+  BFF_PERSONAL_URL=https://bff-personal.albamon.com
+────────────────────────────────────────
+[Step][26-06-24 13:56:28 KST] 개인정보 수정 팝업 조회 (prd 전용)
+  URL: https://bff-personal.albamon.com/member/users/edit-by-pop-up
+  Method: GET
+  [REQUEST ERROR] 개인정보 수정 팝업 조회 (prd 전용)
+    Method : GET
+    URL    : https://bff-personal.albamon.com/member/users/edit-by-pop-up
+    Type   : ConnectTimeout
+  [TestRail] ps_get_user_edit_info_prd -> FAIL
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+"""
+        results = extract_urls(text)
+        self.assertEqual(len(results), 1)
+        m: MatchedUrl = results[0]
+        self.assertEqual(
+            m.url,
+            "https://bff-personal.albamon.com/member/users/edit-by-pop-up",
+        )
+        self.assertEqual(m.method, "GET")
+        self.assertEqual(m.count, 1)
+        self.assertIsNone(m.status_code)  # ConnectTimeout — HTTP status 없음
+        self.assertIsNotNone(m.owner)
+        self.assertEqual(m.owner.pk, owner.pk)
+        # host-only 변수 URL 은 결과에 없어야 한다.
+        self.assertNotIn(
+            "https://bff-personal.albamon.com",
+            [r.url for r in results],
+        )
+
+    def test_extract_urls_error_url_takes_priority_over_noise(self):
+        """ERROR_URL 이 있으면 로그의 다른 URL(라벨/맨몸)은 전부 무시."""
+        text = (
+            "  ERROR_URL: https://api.example.com/failed/endpoint\n"
+            "  URL: https://api.example.com/some/other/call\n"
+            "  Method: POST\n"
+            "  noise line https://cdn.example.com/asset.js trailing\n"
+            "  VAR_URL=https://host-only.example.com\n"
+        )
+        results = extract_urls(text)
+        self.assertEqual(
+            [r.url for r in results],
+            ["https://api.example.com/failed/endpoint"],
+        )
+
+    def test_extract_urls_error_url_counts_failures(self):
+        """같은 ERROR_URL 이 여러 번 = 실패 횟수 count, 정렬은 count 내림차순."""
+        text = (
+            "ERROR_URL: https://api.example.com/a\n\n\n"
+            "ERROR_URL: https://api.example.com/a\n\n\n"
+            "ERROR_URL: https://api.example.com/b\n"
+        )
+        results = extract_urls(text)
+        self.assertEqual(results[0].url, "https://api.example.com/a")
+        self.assertEqual(results[0].count, 2)
+        self.assertEqual(results[1].url, "https://api.example.com/b")
         self.assertEqual(results[1].count, 1)
 
     def test_mentions_uses_slack_lookup_and_falls_back_to_plain(self):
@@ -1484,3 +1591,561 @@ class GoogleSheetSyncTests(TestCase):
         self.assertIn("자동 동기화 주기", body)
         self.assertIn('name="interval_minutes"', body)
         self.assertIn("15분", body)
+
+
+class JenkinsInternalGwtAuthTests(TestCase):
+    """내부 Jenkins = 익명 read + GWT 트리거, 외부 = Basic auth 디스패치 검증."""
+
+    def _client_internal(self):
+        from apps.integrations.jenkins import JenkinsClient
+        return JenkinsClient()  # base_url 미지정 → 내부
+
+    def _client_external(self):
+        from apps.integrations.jenkins import JenkinsClient
+        return JenkinsClient(base_url="https://ext-jenkins", user="u", api_token="t")
+
+    def test_internal_is_anonymous(self):
+        c = self._client_internal()
+        self.assertTrue(c.is_internal)
+        self.assertEqual(c._auth_header, "")  # Authorization 헤더 없음(익명)
+
+    def test_external_uses_basic_auth(self):
+        c = self._client_external()
+        self.assertFalse(c.is_internal)
+        self.assertTrue(c._auth_header.startswith("Basic "))
+
+    def test_internal_request_sends_no_auth_header(self):
+        from unittest import mock
+        c = self._client_internal()
+        with mock.patch("apps.integrations.jenkins.urlopen") as mu:
+            mu.return_value.__enter__.return_value.read.return_value = b'{"ok":1}'
+            c._request("/api/json")
+            req = mu.call_args[0][0]
+            self.assertIsNone(req.get_header("Authorization"))
+
+    def test_trigger_job_internal_requires_token(self):
+        from apps.integrations.jenkins import JenkinsError
+        c = self._client_internal()
+        with self.assertRaises(JenkinsError):
+            c.trigger_job("folder/job_1", gwt_token="")
+
+    def test_trigger_job_internal_dispatches_to_webhook(self):
+        from unittest import mock
+        c = self._client_internal()
+        with mock.patch.object(c, "trigger_webhook", return_value={"build_number": 5}) as mw:
+            r = c.trigger_job("folder/job_1", gwt_token="tok123")
+            mw.assert_called_once_with("folder/job_1", "tok123")
+            self.assertEqual(r["build_number"], 5)
+
+    def test_trigger_job_external_dispatches_to_build(self):
+        from unittest import mock
+        c = self._client_external()
+        with mock.patch.object(c, "trigger_build", return_value={"build_number": 9}) as mb:
+            c.trigger_job("folder/job_1", gwt_token="ignored-for-external")
+            mb.assert_called_once_with("folder/job_1")
+
+    def test_trigger_webhook_invoke_request(self):
+        from unittest import mock
+        from apps.integrations.jenkins import JenkinsClient
+        c = self._client_internal()
+        with mock.patch.object(JenkinsClient, "get_next_build_number", return_value=42), \
+             mock.patch("apps.integrations.jenkins.urlopen") as mu:
+            mu.return_value.__enter__.return_value.read.return_value = b""  # 빈 200 = 성공
+            r = c.trigger_webhook("folder/job_1", "tok123")
+            self.assertEqual(r["build_number"], 42)
+            req = mu.call_args[0][0]
+            self.assertIn("/generic-webhook-trigger/invoke", req.full_url)
+            self.assertEqual(req.get_method(), "POST")
+            self.assertEqual(req.get_header("Token"), "tok123")  # 토큰은 헤더로
+
+    def test_trigger_webhook_no_matching_job_errors(self):
+        from unittest import mock
+        from apps.integrations.jenkins import JenkinsClient, JenkinsError
+        c = self._client_internal()
+        with mock.patch.object(JenkinsClient, "get_next_build_number", return_value=1), \
+             mock.patch("apps.integrations.jenkins.urlopen") as mu:
+            mu.return_value.__enter__.return_value.read.return_value = (
+                b'{"jobs":null,"message":"Did not find any jobs with GenericTrigger configured!"}'
+            )
+            with self.assertRaises(JenkinsError):
+                c.trigger_webhook("folder/job_1", "wrong-token")
+
+
+class ApiOwnerFormAndModalTests(TestCase):
+    """담당자 등록 폼 개선(드롭다운 + 사용회수 선택값) + Error Log 모달 AJAX 등록."""
+
+    def setUp(self):
+        invalidate_match_cache()
+        # 드롭다운 choices 의 소스가 될 기존 row 들 (시트 미러 가정).
+        ApiEndpointOwner.objects.create(
+            repo="AM PC", method="GET", endpoint="/a", category="로그인 / 로그아웃",
+            area="AM BFF", is_imported=True,
+        )
+        ApiEndpointOwner.objects.create(
+            repo="JK Mobile", method="GET", endpoint="/b", category="스크랩",
+            area="JK 이력서", is_imported=True,
+        )
+
+    def _admin(self):
+        from django.contrib.auth import get_user_model
+        return get_user_model().objects.create_user(
+            username="owner_form_admin", password="x", role="qpe_admin", is_staff=True,
+        )
+
+    def test_dropdown_choices_from_db_distinct(self):
+        from apps.integrations.forms import ApiEndpointOwnerForm
+        form = ApiEndpointOwnerForm()
+        repo_vals = [v for v, _ in form.fields["repo"].choices]
+        self.assertIn("AM PC", repo_vals)
+        self.assertIn("JK Mobile", repo_vals)
+        self.assertEqual(repo_vals[0], "")  # 빈 placeholder 옵션
+        cat_vals = [v for v, _ in form.fields["category"].choices]
+        self.assertIn("로그인 / 로그아웃", cat_vals)
+        self.assertIn("스크랩", cat_vals)
+        area_vals = [v for v, _ in form.fields["area"].choices]
+        self.assertIn("AM BFF", area_vals)
+
+    def test_repo_required_category_area_optional(self):
+        from apps.integrations.forms import ApiEndpointOwnerForm
+        form = ApiEndpointOwnerForm()
+        self.assertTrue(form.fields["repo"].required)
+        self.assertFalse(form.fields["category"].required)
+        self.assertFalse(form.fields["area"].required)
+        self.assertFalse(form.fields["usage_count"].required)
+
+    def test_usage_count_optional_defaults_zero(self):
+        from apps.integrations.forms import ApiEndpointOwnerForm
+        form = ApiEndpointOwnerForm(data={
+            "repo": "AM PC", "method": "POST", "endpoint": "/new/endpoint",
+            "category": "", "area": "", "usage_count": "",
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        obj = form.save(commit=False)
+        self.assertEqual(obj.usage_count, 0)
+
+    def test_edit_preserves_value_not_in_distinct_set(self):
+        """편집 중 row 의 repo 값이 다른 row 들에 없어도 choices 에 유지돼야 한다."""
+        from apps.integrations.forms import ApiEndpointOwnerForm
+        obj = ApiEndpointOwner.objects.create(
+            repo="LEGACY REPO", method="GET", endpoint="/legacy", is_imported=False,
+        )
+        form = ApiEndpointOwnerForm(instance=obj)
+        self.assertIn("LEGACY REPO", [v for v, _ in form.fields["repo"].choices])
+
+    def test_ajax_create_returns_json_and_persists(self):
+        c = Client()
+        c.force_login(self._admin())
+        resp = c.post(
+            "/accounts/api-owners/new/",
+            data={
+                "repo": "AM PC", "method": "POST",
+                "endpoint": "/member/identity/identity-verification/result-info",
+                "category": "로그인 / 로그아웃", "area": "AM BFF",
+                "fe_owner": "김프론트", "be_owner": "김백엔드", "usage_count": "",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])
+        self.assertTrue(
+            ApiEndpointOwner.objects.filter(
+                method="POST",
+                endpoint="/member/identity/identity-verification/result-info",
+            ).exists()
+        )
+
+    def test_ajax_create_invalid_returns_400_with_errors(self):
+        c = Client()
+        c.force_login(self._admin())
+        resp = c.post(
+            "/accounts/api-owners/new/",
+            data={"repo": "", "method": "GET", "endpoint": "/x"},  # repo 누락
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(resp.status_code, 400)
+        body = resp.json()
+        self.assertFalse(body["ok"])
+        self.assertIn("repo", body["errors"])
+
+    def test_non_ajax_create_still_redirects(self):
+        c = Client()
+        c.force_login(self._admin())
+        resp = c.post(
+            "/accounts/api-owners/new/",
+            data={
+                "repo": "AM PC", "method": "DELETE", "endpoint": "/plain/post",
+                "category": "", "area": "", "usage_count": "",
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(
+            ApiEndpointOwner.objects.filter(method="DELETE", endpoint="/plain/post").exists()
+        )
+
+    def test_error_log_page_renders_modal_for_admin(self):
+        """Suite Error Log 페이지에 admin 일 때 등록 모달이 포함된다."""
+        from apps.suites.models import TestSuite, TestSuiteRun, TestSuiteJob, TestSuiteJobRun
+        suite = TestSuite.objects.create(name="m-suite", jenkins_folder_path="m/folder")
+        run = TestSuiteRun.objects.create(suite=suite)
+        job = TestSuiteJob.objects.create(suite=suite, job_name="m-job", job_full_path="m/job")
+        jr = TestSuiteJobRun.objects.create(
+            suite_run=run, job=job,
+            console_output="@@@@@@@@@@\n  ERROR_URL: https://x.example.com/a\n  Method: GET\n@@@@@@@@@@",
+        )
+        c = Client()
+        c.force_login(self._admin())
+        resp = c.get(f"/suites/job-runs/{jr.pk}/error-log/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "owner-modal")
+        self.assertContains(resp, "openOwnerModal")
+
+    def test_error_log_table_shows_category_and_area(self):
+        """이슈 F/U 담당자 표에 카테고리·영역 컬럼이 노출되고 매칭 owner 값이 채워진다."""
+        from apps.suites.models import TestSuite, TestSuiteRun, TestSuiteJob, TestSuiteJobRun
+        ApiEndpointOwner.objects.create(
+            repo="AM PC", method="GET", endpoint="/member/cat-area-check",
+            category="회원가입 / 인증", area="AM BFF", fe_owner="김프론트", is_imported=True,
+        )
+        suite = TestSuite.objects.create(name="ca-suite", jenkins_folder_path="ca/f")
+        run = TestSuiteRun.objects.create(suite=suite)
+        job = TestSuiteJob.objects.create(suite=suite, job_name="ca-job", job_full_path="ca/job")
+        jr = TestSuiteJobRun.objects.create(
+            suite_run=run, job=job,
+            console_output=(
+                "@@@@@@@@@@\n"
+                "  ERROR_URL: https://x.example.com/member/cat-area-check\n  Method: GET\n"
+                "@@@@@@@@@@"
+            ),
+        )
+        c = Client()
+        c.force_login(self._admin())
+        resp = c.get(f"/suites/job-runs/{jr.pk}/error-log/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "<th>카테고리</th>")
+        self.assertContains(resp, "<th>영역</th>")
+        self.assertContains(resp, "회원가입 / 인증")
+        self.assertContains(resp, "AM BFF")
+
+
+class OwnerSheetWritebackTests(TestCase):
+    """담당자 수동 등록 → Google Sheet 역방향 기록(append). 네트워크는 전부 mock."""
+
+    class _Resp:
+        def __init__(self, status=200, payload=None):
+            self.status_code = status
+            self._p = payload or {}
+            self.text = ""
+        def json(self):
+            return self._p
+
+    def _fake_session(self, headers, captured):
+        Resp = self._Resp
+        class _Sess:
+            def get(self, url, params=None, timeout=None):
+                if "/values/" in url:
+                    return Resp(payload={"values": [headers]})
+                return Resp(payload={"sheets": [{"properties": {"title": "마스터", "sheetId": 0}}]})
+            def post(self, url, params=None, json=None, timeout=None):
+                captured["url"] = url
+                captured["params"] = params
+                captured["json"] = json
+                return Resp(status=200, payload={"updates": {}})
+        return _Sess()
+
+    def test_enabled_flag_opt_in(self):
+        from apps.integrations.services import is_owner_writeback_enabled
+        from unittest import mock
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("GSHEET_OWNERS_WRITEBACK", None)
+            self.assertFalse(is_owner_writeback_enabled())  # 기본 off
+        with mock.patch.dict(os.environ, {"GSHEET_OWNERS_WRITEBACK": "1"}):
+            self.assertTrue(is_owner_writeback_enabled())
+        with mock.patch.dict(os.environ, {"GSHEET_OWNERS_WRITEBACK": "off"}):
+            self.assertFalse(is_owner_writeback_enabled())
+
+    def test_owner_to_sheet_values(self):
+        from apps.integrations.services import _owner_to_sheet_values
+        o = ApiEndpointOwner.objects.create(
+            repo="AM PC", method="POST", endpoint="${BFF_URL}/x",
+            category="기타", area="AM BFF", fe_owner="김프", be_owner="김백", usage_count=3,
+        )
+        v = _owner_to_sheet_values(o)
+        self.assertEqual(v["endpoint"], "${BFF_URL}/x")
+        self.assertEqual(v["usage_count"], 3)
+        self.assertEqual(v["area"], "AM BFF")
+
+    def test_append_builds_row_in_sheet_header_order(self):
+        from apps.integrations import google_sheets as gs
+        from unittest import mock
+        headers = ["레포", "Method", "Endpoint", "FE 담당자", "BE 담당자",
+                   "카테고리", "영역", "매핑 앱", "사용 횟수", "step_ids"]
+        captured = {}
+        with mock.patch.object(gs, "_build_session", return_value=self._fake_session(headers, captured)):
+            gs.append_owner_row({
+                "repo": "AM PC", "method": "POST", "endpoint": "${BFF_PERSONAL_URL}/member/x",
+                "fe_owner": "김프", "be_owner": "김백", "category": "기타", "area": "AM BFF",
+                "mapped_app": "", "usage_count": 0, "step_ids": "",
+            }, spreadsheet_id="dummy")
+        row = captured["json"]["values"][0]
+        # 시트 헤더 순서 그대로 + ${...} 원형 보존.
+        self.assertEqual(row, ["AM PC", "POST", "${BFF_PERSONAL_URL}/member/x", "김프", "김백",
+                               "기타", "AM BFF", "", 0, ""])
+        self.assertEqual(captured["params"]["valueInputOption"], "USER_ENTERED")
+
+    def test_append_unmapped_sheet_column_blank(self):
+        """시트에만 있는 컬럼(예: 비고)은 빈칸으로 채워 양식 유지."""
+        from apps.integrations import google_sheets as gs
+        from unittest import mock
+        captured = {}
+        with mock.patch.object(gs, "_build_session",
+                               return_value=self._fake_session(["레포", "Method", "Endpoint", "비고"], captured)):
+            gs.append_owner_row({"repo": "R", "method": "GET", "endpoint": "/y"}, spreadsheet_id="d")
+        self.assertEqual(captured["json"]["values"][0], ["R", "GET", "/y", ""])
+
+    def test_async_noop_when_disabled(self):
+        from apps.integrations import services
+        from unittest import mock
+        o = ApiEndpointOwner.objects.create(repo="R", method="GET", endpoint="/z")
+        with mock.patch.object(services, "_is_test_run", return_value=False), \
+             mock.patch.dict(os.environ, {}, clear=False), \
+             mock.patch("apps.integrations.google_sheets.append_owner_row") as m:
+            os.environ.pop("GSHEET_OWNERS_WRITEBACK", None)  # disabled
+            services.writeback_owner_to_sheet_async(o)
+        m.assert_not_called()
+
+    def test_async_calls_append_when_enabled(self):
+        """enabled + 가드 우회 시 append 호출 (Thread 는 동기 실행으로 패치)."""
+        from apps.integrations import services
+        from unittest import mock
+        o = ApiEndpointOwner.objects.create(repo="R", method="GET", endpoint="/q",
+                                            category="기타", area="AM BFF")
+
+        def _sync_thread(target=None, daemon=None):
+            class T:
+                def start(self_):
+                    target()
+            return T()
+
+        with mock.patch.object(services, "_is_test_run", return_value=False), \
+             mock.patch.dict(os.environ, {"GSHEET_OWNERS_WRITEBACK": "1"}), \
+             mock.patch.object(services.threading, "Thread", side_effect=_sync_thread), \
+             mock.patch("apps.integrations.google_sheets.append_owner_row") as m:
+            services.writeback_owner_to_sheet_async(o)
+        m.assert_called_once()
+        self.assertEqual(m.call_args[0][0]["endpoint"], "/q")
+
+
+class SlackUserIdBackfillTests(TestCase):
+    """이메일 기반 User.slack_user_id 자동 매핑 — Slack 호출은 mock."""
+
+    def _user(self, name, email, role="qpe_ops", sid="", active=True):
+        from django.contrib.auth import get_user_model
+        return get_user_model().objects.create_user(
+            username=name, password="x", email=email, role=role,
+            is_active=active, slack_user_id=sid)
+
+    def test_maps_empty_by_email_preserves_existing(self):
+        from apps.integrations import slack_user_sync as sus
+        from unittest import mock
+        u1 = self._user("a", "a@x.com")
+        u2 = self._user("b", "b@x.com", role="qpe_admin", sid="U_KEEP")
+        u3 = self._user("c", "")  # 이메일 없음 — 대상 아님
+        with mock.patch.object(sus, "build_email_index",
+                               return_value={"a@x.com": "U_A", "b@x.com": "U_B"}):
+            res = sus.backfill_user_slack_ids()
+        u1.refresh_from_db(); u2.refresh_from_db(); u3.refresh_from_db()
+        self.assertEqual(u1.slack_user_id, "U_A")       # 빈 값 → 매핑
+        self.assertEqual(u2.slack_user_id, "U_KEEP")    # 기존값 보존(overwrite=False)
+        self.assertEqual(u3.slack_user_id, "")
+        self.assertEqual(res["mapped"], 1)
+
+    def test_overwrite_updates_existing(self):
+        from apps.integrations import slack_user_sync as sus
+        from unittest import mock
+        u = self._user("b", "b@x.com", sid="U_OLD")
+        with mock.patch.object(sus, "build_email_index", return_value={"b@x.com": "U_NEW"}):
+            res = sus.backfill_user_slack_ids(overwrite=True)
+        u.refresh_from_db()
+        self.assertEqual(u.slack_user_id, "U_NEW")
+        self.assertEqual(res["mapped"], 1)
+
+    def test_unmatched_reported(self):
+        from apps.integrations import slack_user_sync as sus
+        from unittest import mock
+        self._user("nomatch", "nomatch@x.com")
+        with mock.patch.object(sus, "build_email_index", return_value={"other@x.com": "U_O"}):
+            res = sus.backfill_user_slack_ids()
+        self.assertIn("nomatch", res["unmatched"])
+        self.assertEqual(res["mapped"], 0)
+
+    def test_empty_index_no_crash(self):
+        from apps.integrations import slack_user_sync as sus
+        from unittest import mock
+        self._user("a", "a@x.com")
+        with mock.patch.object(sus, "build_email_index", return_value={}):
+            res = sus.backfill_user_slack_ids()
+        self.assertEqual(res["mapped"], 0)
+
+
+class UiAutomationOwnersTests(TestCase):
+    """담당자 관리 > UI 탭 — UI Test Automation(TAP) 실패 Slack 알림 담당자 (singleton).
+
+    TAP 케이스는 URL 매칭 개념 밖이라 Suite/케이스 구분 없이 통으로 멘션한다.
+    """
+
+    def setUp(self):
+        from apps.notifications.models import SlackNotificationSettings
+        from apps.suites.models import TapRun, TapSuite
+
+        s = SlackNotificationSettings.get_solo()
+        s.enabled = True
+        s.default_channel = "#qg-test"
+        s.notify_tap_run_started = True
+        s.notify_tap_run_passed = True
+        s.notify_tap_run_failed = True
+        s.save()
+        self.suite = TapSuite.objects.create(
+            tap_id=7701, name="ui-owner-suite", project_name="[AM] UI", case_count=2)
+        self.run = TapRun.objects.create(
+            tap_suite=self.suite, session_id=77001, status=TapRun.Status.COMPLETED,
+            total_cases=2, completed_cases=2, passed=1, failed=1,
+            raw_cases_json=[{"title": "로그인", "status": "failed",
+                             "testrail_url": "https://testrail/x/1"}],
+        )
+
+    def _set_owners(self, text):
+        from apps.integrations.models import UiAutomationOwners
+        obj = UiAutomationOwners.get_solo()
+        obj.owners = text
+        obj.save()
+
+    def _send(self, event_type, run=None):
+        """send_tap_run_event 를 실제 호출하고 _post_message 에 넘어간 (channel, title) 을 캡처."""
+        from unittest import mock
+        from apps.notifications.services import send_tap_run_event
+        with mock.patch(
+            "apps.integrations.slack_users.find_user_id_by_name",
+            side_effect=lambda n: {"김태식": "U_KIM"}.get(n),
+        ), mock.patch(
+            "apps.notifications.services._post_message", return_value=True,
+        ) as post:
+            ok = send_tap_run_event(event_type, run or self.run)
+        return ok, post
+
+    def _admin(self):
+        from django.contrib.auth import get_user_model
+        return get_user_model().objects.create_user(
+            username="ui_owner_admin", password="x", role="qpe_admin", is_staff=True)
+
+    def test_singleton_and_names(self):
+        from apps.integrations.models import UiAutomationOwners
+        a = UiAutomationOwners.get_solo()
+        b = UiAutomationOwners.get_solo()
+        self.assertEqual(a.pk, b.pk)
+        self.assertEqual(UiAutomationOwners.objects.count(), 1)
+        a.owners = "김태식, 김도연 ,  ,홍길동"
+        a.save()
+        self.assertEqual(a.names(), ["김태식", "김도연", "홍길동"])
+
+    def test_fail_alert_mentions_ui_owners(self):
+        """FAIL — 매칭된 이름은 <@U>, 실패는 @이름 으로 top-level 본문에 멘션."""
+        from apps.notifications import events as E
+        self._set_owners("김태식, 김도연")
+        ok, post = self._send(E.TAP_RUN_FAILED)
+        self.assertTrue(ok)
+        post.assert_called_once()
+        channel, title = post.call_args.args[0], post.call_args.args[1]
+        self.assertEqual(channel, "#qg-test")
+        self.assertIn("UI Suite FAIL", title)
+        self.assertIn("*담당자 F/U*", title)
+        self.assertIn("<@U_KIM>", title)
+        self.assertIn("@김도연", title)
+
+    def test_schedule_fail_alert_also_mentions(self):
+        """Reliability 스케줄 실행 FAIL 도 멘션 (UI 실패 알림 대부분이 스케줄 실행)."""
+        from apps.notifications import events as E
+        from apps.robustness.models import RobustnessSchedule, RobustnessTest
+        rt = RobustnessTest.objects.create(name="ui-owner-rt")
+        sched = RobustnessSchedule.objects.create(
+            robustness_test=rt, tap_suite=self.suite, interval_minutes=60)
+        self.run.robustness_schedule = sched
+        self.run.save(update_fields=["robustness_schedule"])
+        self._set_owners("김태식")
+        _ok, post = self._send(E.TAP_RUN_FAILED)
+        self.assertIn("<@U_KIM>", post.call_args.args[1])
+
+    def test_fail_alert_without_owners_has_no_mention(self):
+        """미설정 — 멘션 없이 FAIL 알림은 그대로 발송."""
+        from apps.notifications import events as E
+        self._set_owners("")
+        ok, post = self._send(E.TAP_RUN_FAILED)
+        self.assertTrue(ok)
+        title = post.call_args.args[1]
+        self.assertIn("UI Suite FAIL", title)
+        self.assertNotIn("담당자 F/U", title)
+
+    def test_started_and_passed_alerts_do_not_mention(self):
+        from apps.notifications import events as E
+        self._set_owners("김태식")
+        for ev in (E.TAP_RUN_STARTED, E.TAP_RUN_PASSED):
+            _ok, post = self._send(ev)
+            self.assertNotIn("<@U_KIM>", post.call_args.args[1], ev)
+            self.assertNotIn("담당자 F/U", post.call_args.args[1], ev)
+
+    def test_mention_failure_does_not_block_fail_alert(self):
+        """담당자 조회가 터져도(예: 배포 직후 마이그레이션 전) FAIL 알림은 발송."""
+        from unittest import mock
+        from apps.notifications import events as E
+        with mock.patch(
+            "apps.integrations.models.UiAutomationOwners.get_solo",
+            side_effect=RuntimeError("no such table"),
+        ):
+            ok, post = self._send(E.TAP_RUN_FAILED)
+        self.assertTrue(ok)
+        self.assertNotIn("담당자 F/U", post.call_args.args[1])
+
+    def test_owner_list_tabs_render(self):
+        """기본 = API 탭(매핑 표), ?tab=ui = UI 담당자 폼. 두 탭 링크 모두 노출."""
+        c = Client()
+        c.force_login(self._admin())
+        self._set_owners("김태식, 김도연")
+
+        resp = c.get("/accounts/api-owners/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "API Endpoint 담당자 매핑")
+        self.assertContains(resp, "?tab=ui")
+        self.assertNotContains(resp, "/accounts/api-owners/ui/save/")
+
+        resp = c.get("/accounts/api-owners/?tab=ui")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "UI Test Automation 실패 알림 담당자")
+        self.assertContains(resp, "/accounts/api-owners/ui/save/")
+        self.assertContains(resp, 'value="김태식, 김도연"')
+        self.assertNotContains(resp, "API Endpoint 담당자 매핑")
+
+    def test_save_view_persists_logs_and_redirects_to_ui_tab(self):
+        from apps.activitylog.models import ActivityLog
+        from apps.integrations.models import UiAutomationOwners
+        c = Client()
+        c.force_login(self._admin())
+        resp = c.post("/accounts/api-owners/ui/save/", {"owners": "김태식, 김도연"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp["Location"].endswith("/accounts/api-owners/?tab=ui"))
+        self.assertEqual(UiAutomationOwners.get_solo().owners, "김태식, 김도연")
+        self.assertTrue(ActivityLog.objects.filter(
+            action=ActivityLog.Action.UPDATE, target_name="UI 알림 담당자").exists())
+
+    def test_save_view_rejects_non_admin_and_get(self):
+        from django.contrib.auth import get_user_model
+        from apps.integrations.models import UiAutomationOwners
+        self._set_owners("기존")
+        c = Client()
+        c.force_login(get_user_model().objects.create_user(
+            username="ui_owner_ops", password="x", role="qpe_ops"))
+        resp = c.post("/accounts/api-owners/ui/save/", {"owners": "침입"})
+        self.assertEqual(resp.status_code, 302)  # 권한 미들웨어가 non-admin 을 돌려보냄
+        self.assertEqual(UiAutomationOwners.get_solo().owners, "기존")
+
+        c.force_login(self._admin())
+        resp = c.get("/accounts/api-owners/ui/save/")
+        self.assertEqual(resp.status_code, 405)

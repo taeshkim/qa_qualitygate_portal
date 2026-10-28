@@ -66,3 +66,37 @@ def phase_for_suite_run(status: str, *, passed_jobs: int = 0, failed_jobs: int =
         return SUCCEEDED
     # 둘 다 0 — 비정상이지만 보수적으로 succeeded
     return SUCCEEDED
+
+
+# ---------------------------------------------------------------------------
+# Pass/Fail 결과 — 외부 시스템이 폴링으로 합/불을 바로 읽도록 명시 필드 제공.
+#   running/queued 등 비종료 상태에서는 None (아직 미정).
+# ---------------------------------------------------------------------------
+
+RESULT_PASSED = "passed"
+RESULT_FAILED = "failed"
+
+# TestSuiteJobRun.Status (6개) → 개별 Job 결과. pending/queued/running 은 미정(None).
+_JOB_RUN_RESULT = {
+    "success": RESULT_PASSED,
+    "failure": RESULT_FAILED,
+    "aborted": RESULT_FAILED,  # 중단은 집계상 실패로 취급 (_poll_run_status 와 동일)
+}
+
+
+def result_for_suite_run(status: str, *, passed_jobs: int = 0, failed_jobs: int = 0):
+    """TestSuiteRun 의 최종 Pass/Fail.
+
+    - 종료(completed) 전에는 ``None`` (아직 결과 미정).
+    - 종료 후 실패 Job 이 하나라도 있으면 ``"failed"``, 아니면 ``"passed"``.
+    """
+    if status != "completed":
+        return None
+    if failed_jobs and failed_jobs > 0:
+        return RESULT_FAILED
+    return RESULT_PASSED
+
+
+def result_for_job_run(status: str):
+    """TestSuiteJobRun 1건의 Pass/Fail. 진행 중/대기 상태는 ``None``."""
+    return _JOB_RUN_RESULT.get(status)

@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}미 장애 판정 - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>미 장애 판정 분류</h1>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <a href="{% url 'dashboard:index' %}" class="btn btn-secondary">
+            <i class="fas fa-chart-line"></i> 대시보드
+        </a>
+        <a href="{% url 'suites:run_list' %}" class="btn btn-secondary">
+            <i class="fas fa-list-ul"></i> Suite Runs
+        </a>
+    </div>
+</div>
+
+<p class="text-muted" style="margin:-8px 0 16px">
+    아직 <strong>장애 / Skip 판정이 되지 않은 실패 Job</strong> 목록입니다.
+    각 행을 <strong>장애(Failure)</strong> 또는 <strong>Skip(자동화 판정 오류 의심)</strong> 으로 확정하면
+    이 목록에서 사라집니다. 판정 결과는 대시보드 <em>서비스 품질 지표</em> 에 반영됩니다.
+    체크박스로 여러 건을 골라 <strong>일괄 판정</strong>할 수도 있습니다.
+    {% if truncated %}
+    <br>대기 <strong>{{ total_count }}</strong>건 중 최신 <strong>{{ shown_count }}</strong>건을 표시합니다.
+    {% endif %}
+</p>
+
+{% if suite_counts %}
+<form method="get" class="card" style="padding:12px 14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+    <span class="text-muted" style="font-size:0.85em;white-space:nowrap">
+        <i class="fas fa-filter"></i> Suite 필터 <span style="font-size:0.9em">(복수 선택)</span>
+    </span>
+    {% for s in suite_counts %}
+    <label style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--gray-300);border-radius:14px;cursor:pointer;font-size:0.86em;user-select:none">
+        <input type="checkbox" name="suite" value="{{ s.id }}"
+               {% if s.id in selected_suite_ids %}checked{% endif %}
+               onchange="this.form.submit()" style="cursor:pointer">
+        {{ s.name }} <span class="text-muted">({{ s.n }})</span>
+    </label>
+    {% endfor %}
+    {% if is_filtered %}
+    <a href="{% url 'suites:untriaged_list' %}" class="btn btn-sm btn-secondary">전체 보기</a>
+    {% endif %}
+</form>
+{% endif %}
+
+<div class="card">
+    <div class="section-head" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+        <h2 class="card-title" style="margin:0">
+            판정 대기 <span style="color:#e11d48">{{ total_count }}</span>건
+            {% if is_filtered %}<span class="text-muted" style="font-size:0.72em;font-weight:normal">(Suite 필터 적용됨)</span>{% endif %}
+        </h2>
+        {% if user.can_write and job_runs %}
+        <form id="ut-bulk-form" method="post" action="{% url 'suites:untriaged_bulk_triage' %}"
+              style="display:flex;gap:8px;align-items:center">
+            {% csrf_token %}
+            {% for sid in selected_suite_ids %}<input type="hidden" name="filter_suite" value="{{ sid }}">{% endfor %}
+            <span id="ut-selected-count" class="text-muted" style="font-size:0.85em">선택 0건</span>
+            <button type="submit" name="verdict" value="failure" class="btn btn-sm btn-danger"
+                    id="ut-bulk-failure" disabled
+                    onclick="return confirm('선택한 ' + utSelectedCount() + '건을 실제 장애(Failure)로 일괄 판정합니다.\n담당자에게 F/U 알림이 갈 수 있습니다.');">
+                🔴 선택 일괄 장애
+            </button>
+            <button type="submit" name="verdict" value="skip" class="btn btn-sm btn-secondary"
+                    id="ut-bulk-skip" disabled
+                    onclick="return confirm('선택한 ' + utSelectedCount() + '건을 자동화 판정 오류 의심(Skip)으로 일괄 처리합니다.');">
+                ⏭️ 선택 일괄 Skip
+            </button>
+        </form>
+        {% endif %}
+    </div>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    {% if user.can_write %}
+                    <th style="width:34px;text-align:center">
+                        <input type="checkbox" id="ut-check-all" title="전체 선택/해제" style="cursor:pointer">
+                    </th>
+                    {% endif %}
+                    <th>Suite</th>
+                    <th>Run</th>
+                    <th>Job (worker)</th>
+                    <th>실패 시각</th>
+                    <th>로그</th>
+                    <th style="text-align:right">판정</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for jr in job_runs %}
+                <tr>
+                    {% if user.can_write %}
+                    <td style="text-align:center">
+                        <input type="checkbox" class="ut-check" name="job_run_ids" value="{{ jr.pk }}"
+                               form="ut-bulk-form" style="cursor:pointer">
+                    </td>
+                    {% endif %}
+                    <td><strong>{{ jr.suite_run.suite.name }}</strong></td>
+                    <td>
+                        {% if jr.suite_run.seq_no %}
+                        <a href="{% url 'suites:run_detail' jr.suite_run.pk %}" class="mono" style="font-size:0.85em;text-decoration:none">
+                            <span style="color:var(--gray-600)">{{ jr.suite_run.suite.short_label }}</span> · #{{ jr.suite_run.seq_no }}
+                        </a>
+                        {% else %}
+                        <a href="{% url 'suites:run_detail' jr.suite_run.pk %}" class="text-muted">Detail</a>
+                        {% endif %}
+                    </td>
+                    <td class="mono" style="font-size:0.9em">{{ jr.job.job_name }}</td>
+                    <td>{{ jr.completed_at|default:jr.started_at|date:"m-d H:i" }}</td>
+                    <td>
+                        <a href="{% url 'suites:job_run_error_log' jr.pk %}" class="btn btn-sm btn-secondary" title="에러 로그 상세">
+                            <i class="fas fa-magnifying-glass"></i>
+                        </a>
+                    </td>
+                    <td style="text-align:right;white-space:nowrap">
+                        {% if user.can_write %}
+                        <form action="{% url 'suites:job_run_triage' jr.pk %}" method="post" style="display:inline"
+                              onsubmit="return confirm('이 실패를 실제 장애(Failure)로 판정합니다.\n담당자에게 F/U 알림이 갈 수 있습니다.');">
+                            {% csrf_token %}
+                            {% for sid in selected_suite_ids %}<input type="hidden" name="filter_suite" value="{{ sid }}">{% endfor %}
+                            <input type="hidden" name="verdict" value="failure">
+                            <button type="submit" class="btn btn-sm btn-danger">🔴 장애</button>
+                        </form>
+                        <form action="{% url 'suites:job_run_triage' jr.pk %}" method="post" style="display:inline"
+                              onsubmit="return confirm('자동화 판정 오류 의심 및 자동화 코드 이슈 추정으로 Skip 처리합니다.');">
+                            {% csrf_token %}
+                            {% for sid in selected_suite_ids %}<input type="hidden" name="filter_suite" value="{{ sid }}">{% endfor %}
+                            <input type="hidden" name="verdict" value="skip">
+                            <button type="submit" class="btn btn-sm btn-secondary">⏭️ Skip</button>
+                        </form>
+                        {% else %}
+                        <span class="text-muted" style="font-size:0.82em">권한 없음</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{% if user.can_write %}7{% else %}6{% endif %}" class="text-muted" style="text-align:center;padding:28px">
+                        🎉 판정 대기 중인 실패가 없습니다.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if user.can_write and job_runs %}
+<script>
+(function () {
+    var checkAll = document.getElementById("ut-check-all");
+    var boxes = Array.prototype.slice.call(document.querySelectorAll(".ut-check"));
+    var countEl = document.getElementById("ut-selected-count");
+    var btnFailure = document.getElementById("ut-bulk-failure");
+    var btnSkip = document.getElementById("ut-bulk-skip");
+
+    window.utSelectedCount = function () {
+        return boxes.filter(function (b) { return b.checked; }).length;
+    };
+
+    function refresh() {
+        var n = window.utSelectedCount();
+        countEl.textContent = "선택 " + n + "건";
+        btnFailure.disabled = n === 0;
+        btnSkip.disabled = n === 0;
+        if (checkAll) {
+            checkAll.checked = n > 0 && n === boxes.length;
+            checkAll.indeterminate = n > 0 && n < boxes.length;
+        }
+    }
+
+    if (checkAll) {
+        checkAll.addEventListener("change", function () {
+            boxes.forEach(function (b) { b.checked = checkAll.checked; });
+            refresh();
+        });
+    }
+    boxes.forEach(function (b) { b.addEventListener("change", refresh); });
+    refresh();
+})();
+</script>
+{% endif %}
+{% endblock %}

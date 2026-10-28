@@ -1,0 +1,276 @@
+{# Error Log 화면에서 "+ 등록" 시 그 자리에 뜨는 담당자 매핑 등록 모달.
+   - 별도 페이지 이동 없이 뒤의 에러 로그를 보면서 등록 가능.
+   - owner_form (ApiEndpointOwnerForm) 컨텍스트 필요 — repo/category/area 는 드롭다운.
+   - fetch 로 accounts:api_owner_create 에 POST(JSON 응답) → 성공 시 페이지 리로드.
+   - 주의: 등록은 포털 DB(수동 row, is_imported=False) 에만 저장 — Google Sheets 로
+     역방향 기록(write-back) 은 하지 않음. (동기화는 시트→DB 단방향) #}
+<div id="owner-modal" class="om-backdrop" style="display:none">
+  <div class="om-dialog" role="dialog" aria-modal="true" aria-labelledby="om-title">
+    <div class="om-head">
+      <div>
+        <h3 id="om-title"><i class="fas fa-user-plus"></i> 담당자 매핑 추가</h3>
+        <p class="om-sub">이 에러 로그를 보면서 등록할 수 있어요. 등록 즉시 위 표에 반영됩니다.</p>
+      </div>
+      <button type="button" class="om-x" onclick="closeOwnerModal()" aria-label="닫기">&times;</button>
+    </div>
+
+    <div id="owner-modal-host" class="om-host" style="display:none"></div>
+    <div id="owner-modal-errors" class="om-errors" style="display:none"></div>
+
+    <form id="owner-modal-form" method="post" action="{% url 'accounts:api_owner_create' %}">
+      {% csrf_token %}
+
+      <div class="om-section">
+        <div class="om-section-title">대상 API</div>
+        <div class="om-grid om-grid-method">
+          <div class="om-field">
+            <label for="{{ owner_form.method.id_for_label }}">Method <span class="om-req">*</span></label>
+            {{ owner_form.method }}
+          </div>
+          <div class="om-field">
+            <label for="{{ owner_form.endpoint.id_for_label }}">Endpoint <span class="om-req">*</span></label>
+            {{ owner_form.endpoint }}
+          </div>
+        </div>
+      </div>
+
+      <div class="om-section">
+        <div class="om-section-title">분류 <span class="om-hint">Google Sheets 기준 목록</span></div>
+        <div class="om-grid om-grid-2">
+          <div class="om-field">
+            <label for="{{ owner_form.repo.id_for_label }}">레포 <span class="om-req">*</span></label>
+            {{ owner_form.repo }}
+          </div>
+          <div class="om-field">
+            <label for="{{ owner_form.area.id_for_label }}">영역</label>
+            {{ owner_form.area }}
+          </div>
+        </div>
+        <div class="om-field" style="margin-top:10px">
+          <label for="{{ owner_form.category.id_for_label }}">카테고리</label>
+          {{ owner_form.category }}
+        </div>
+      </div>
+
+      <div class="om-section">
+        <div class="om-section-title">담당자 <span class="om-hint">Slack 표시명과 일치 시 자동 멘션</span></div>
+        <div class="om-grid om-grid-2">
+          <div class="om-field">
+            <label for="{{ owner_form.fe_owner.id_for_label }}">FE 담당자</label>
+            {{ owner_form.fe_owner }}
+          </div>
+          <div class="om-field">
+            <label for="{{ owner_form.be_owner.id_for_label }}">BE 담당자</label>
+            {{ owner_form.be_owner }}
+          </div>
+        </div>
+      </div>
+
+      <details class="om-more">
+        <summary>추가 정보 (선택)</summary>
+        <div class="om-grid om-grid-2" style="margin-top:10px">
+          <div class="om-field">
+            <label for="{{ owner_form.mapped_app.id_for_label }}">매핑 앱</label>
+            {{ owner_form.mapped_app }}
+          </div>
+          <div class="om-field">
+            <label for="{{ owner_form.usage_count.id_for_label }}">사용 횟수</label>
+            {{ owner_form.usage_count }}
+          </div>
+        </div>
+        <div class="om-field" style="margin-top:10px">
+          <label for="{{ owner_form.step_ids.id_for_label }}">Step IDs</label>
+          {{ owner_form.step_ids }}
+        </div>
+        <div class="om-field" style="margin-top:10px">
+          <label for="{{ owner_form.notes.id_for_label }}">비고</label>
+          {{ owner_form.notes }}
+        </div>
+      </details>
+
+      <div class="om-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeOwnerModal()">취소</button>
+        <button type="submit" class="btn btn-primary" id="owner-modal-submit"><i class="fas fa-save"></i> 저장</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+.om-backdrop {
+    position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55);
+    z-index: 1000; display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+}
+.om-dialog {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    width: 100%; max-width: 640px; max-height: 88vh; overflow-y: auto;
+    padding: 22px 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+}
+.om-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.om-head h3 { margin: 0; font-size: 1.12rem; }
+.om-head h3 .fas { color: var(--primary); margin-right: 6px; }
+.om-sub { margin: 4px 0 0; font-size: 0.82rem; color: var(--text-muted); }
+.om-x {
+    background: none; border: none; font-size: 1.5rem; line-height: 1;
+    color: var(--gray-400); cursor: pointer; padding: 0 4px;
+}
+.om-x:hover { color: var(--text); }
+
+.om-host {
+    margin-top: 14px; padding: 9px 12px; border-radius: 8px; font-size: 0.8rem;
+    background: var(--surface-2); border-left: 3px solid var(--primary); color: var(--text-muted);
+}
+.om-host code { color: var(--text); }
+.om-errors {
+    margin-top: 14px; padding: 9px 12px; border-radius: 8px; font-size: 0.82rem;
+    background: rgba(220, 38, 38, 0.10); border: 1px solid rgba(220, 38, 38, 0.35); color: var(--danger);
+}
+
+.om-section { margin-top: 18px; }
+.om-section-title {
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--gray-500); padding-bottom: 7px; margin-bottom: 11px;
+    border-bottom: 1px solid var(--border);
+}
+.om-section-title .om-hint, .om-hint {
+    font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--gray-400);
+    font-size: 0.72rem; margin-left: 6px;
+}
+
+.om-grid { display: grid; gap: 12px; }
+.om-grid-2 { grid-template-columns: 1fr 1fr; }
+.om-grid-method { grid-template-columns: 130px 1fr; }
+
+.om-field label {
+    display: block; font-weight: 600; font-size: 0.8rem; color: var(--text);
+    margin-bottom: 5px;
+}
+.om-req { color: var(--danger); }
+
+#owner-modal-form input,
+#owner-modal-form select,
+#owner-modal-form textarea {
+    width: 100%; box-sizing: border-box; font: inherit; font-size: 0.88rem;
+    padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: 8px;
+    background: var(--surface); color: var(--text); transition: border-color .12s, box-shadow .12s;
+}
+#owner-modal-form input::placeholder, #owner-modal-form textarea::placeholder { color: var(--gray-400); }
+#owner-modal-form input:focus,
+#owner-modal-form select:focus,
+#owner-modal-form textarea:focus {
+    outline: none; border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.16);
+}
+#owner-modal-form input[name="method"] { text-transform: uppercase; font-weight: 600; }
+#owner-modal-form textarea { resize: vertical; min-height: 38px; }
+
+.om-more { margin-top: 18px; border-top: 1px dashed var(--border); padding-top: 12px; }
+.om-more > summary {
+    cursor: pointer; font-size: 0.84rem; font-weight: 600; color: var(--primary);
+    list-style: none; user-select: none; display: inline-flex; align-items: center; gap: 6px;
+}
+.om-more > summary::-webkit-details-marker { display: none; }
+.om-more > summary::before { content: "\25B8"; font-size: 0.7rem; transition: transform .12s; }
+.om-more[open] > summary::before { transform: rotate(90deg); }
+
+.om-actions {
+    display: flex; justify-content: flex-end; gap: 8px;
+    margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border);
+}
+
+@media (max-width: 560px) {
+    .om-grid-2, .om-grid-method { grid-template-columns: 1fr; }
+    .om-dialog { padding: 18px 16px; }
+}
+</style>
+
+<script>
+function openOwnerModal(opts) {
+    opts = opts || {};
+    var modal = document.getElementById('owner-modal');
+    var form = document.getElementById('owner-modal-form');
+    var setVal = function (name, val) {
+        var el = form.querySelector('[name="' + name + '"]');
+        if (el && val != null) el.value = val;
+    };
+    setVal('method', opts.method || 'GET');
+    setVal('endpoint', opts.endpoint || '');
+    var hostEl = document.getElementById('owner-modal-host');
+    if (opts.host) {
+        var esc = String(opts.host).replace(/[&<>"']/g, function (c) {
+            return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+        });
+        hostEl.innerHTML = '<i class="fas fa-info-circle"></i> 추출된 호스트: <code>' + esc +
+            '</code> — Endpoint 는 path 만 들어있어요. 필요하면 <code>${BFF_URL}</code> 등 prefix 를 붙여 저장하세요.';
+        hostEl.style.display = 'block';
+    } else {
+        hostEl.style.display = 'none';
+    }
+    var eb = document.getElementById('owner-modal-errors');
+    eb.innerHTML = '';
+    eb.style.display = 'none';
+    modal.style.display = 'flex';
+    // 첫 입력 동선: Method/Endpoint 는 채워져 있으니 '레포' 선택으로 포커스.
+    var repo = form.querySelector('[name="repo"]');
+    if (repo) { try { repo.focus(); } catch (e) {} }
+}
+function closeOwnerModal() {
+    document.getElementById('owner-modal').style.display = 'none';
+}
+(function () {
+    var modal = document.getElementById('owner-modal');
+    var form = document.getElementById('owner-modal-form');
+    if (!modal || !form) return;
+    modal.addEventListener('click', function (e) { if (e.target === modal) closeOwnerModal(); });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && modal.style.display !== 'none') closeOwnerModal();
+    });
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var errBox = document.getElementById('owner-modal-errors');
+        var btn = document.getElementById('owner-modal-submit');
+        errBox.style.display = 'none';
+        btn.disabled = true;
+        var esc = function (s) {
+            return String(s).replace(/[&<>"']/g, function (c) {
+                return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+            });
+        };
+        fetch(form.action, {
+            method: 'POST',
+            body: new FormData(form),
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+        .then(function (r) {
+            // 권한 없음/세션 만료는 HTML 403/401 이라 JSON 파싱 불가 → 명확한 메시지로 분기.
+            if (r.status === 401 || r.status === 403) { throw new Error('auth'); }
+            return r.json().then(function (j) { return { status: r.status, j: j }; });
+        })
+        .then(function (res) {
+            if (res.status >= 200 && res.status < 300 && res.j && res.j.ok) {
+                location.reload();
+                return;
+            }
+            // 서버 검증 에러 — 메시지에 사용자 입력값이 포함될 수 있으므로 반드시 escape.
+            var msgs = [];
+            var errs = (res.j && res.j.errors) || {};
+            Object.keys(errs).forEach(function (k) {
+                (errs[k] || []).forEach(function (m) {
+                    msgs.push((k !== '__all__' ? esc(k) + ': ' : '') + esc(m.message || m));
+                });
+            });
+            errBox.innerHTML = msgs.length ? msgs.join('<br>') : '저장에 실패했습니다.';
+            errBox.style.display = 'block';
+            btn.disabled = false;
+        })
+        .catch(function (e) {
+            errBox.textContent = (e && e.message === 'auth')
+                ? '권한이 없거나 세션이 만료되었습니다. 페이지를 새로고침해 주세요.'
+                : '요청 실패 — 네트워크를 확인하세요.';
+            errBox.style.display = 'block';
+            btn.disabled = false;
+        });
+    });
+})();
+</script>

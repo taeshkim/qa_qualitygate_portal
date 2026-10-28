@@ -63,7 +63,7 @@
 {% endif %}
 
 {% if pending_prod_run %}
-<div class="card" style="background:#fff8e1;border-left:4px solid var(--warning, #f59e0b);margin-bottom:16px">
+<div class="card" style="background:var(--warn-bg);border-left:4px solid var(--warning, #f59e0b);margin-bottom:16px">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
             <strong><i class="fas fa-exclamation-triangle"></i> 검수통과 환경 배포 대기 중</strong>
@@ -211,12 +211,12 @@
     <div class="qg-modal">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
             <h3 style="margin:0">Run Gate</h3>
-            <button type="button" id="run-modal-refresh" onclick="refreshRunParams()" title="파라미터 재조회 (캐시 무시)" style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.82rem;display:none">
+            <button type="button" id="run-modal-refresh" onclick="refreshRunParams()" title="파라미터 재조회 (캐시 무시)" style="background:var(--surface-2);border:1px solid #d1d5db;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.82rem;display:none">
                 <i class="fas fa-sync"></i> 새로고침
             </button>
         </div>
         {% if gate.has_image_build %}
-        <div id="run-modal-mode" style="margin-bottom:14px;padding:10px 12px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px">
+        <div id="run-modal-mode" style="margin-bottom:14px;padding:10px 12px;background:var(--surface-2);border:1px solid #e5e7eb;border-radius:6px">
             <div style="font-size:0.85rem;font-weight:600;margin-bottom:8px">실행 옵션</div>
             <label class="qg-mode-opt">
                 <input type="radio" name="run_mode" value="full" checked onchange="onRunModeChange()">
@@ -260,7 +260,7 @@
     z-index: 1000; display: flex; align-items: center; justify-content: center;
 }
 .qg-modal {
-    background: #fff; border-radius: 8px; padding: 24px;
+    background: var(--surface); border-radius: 8px; padding: 24px;
     width: 90%; max-width: 520px; max-height: 90vh; overflow-y: auto;
 }
 .qg-param-row { margin-bottom: 12px; }
@@ -453,7 +453,7 @@ function renderParam(p) {
         input = `<input type="text" name="param_${esc(name)}" class="form-input" value="${esc(defval)}">`;
     }
     const warn = (isGit && !hasChoices)
-        ? `<div style="margin-top:4px;padding:6px 8px;background:#fff8e1;border-left:3px solid #f59e0b;font-size:0.8rem;color:#92400e"><i class="fas fa-exclamation-triangle"></i> Git Parameter 입니다. 기본값(<code>${esc(defval)}</code>)이 실제 저장소에 없는 브랜치/태그일 수 있으니 실존하는 이름으로 직접 입력하세요.</div>`
+        ? `<div style="margin-top:4px;padding:6px 8px;background:var(--warn-bg);border-left:3px solid #f59e0b;font-size:0.8rem;color:var(--warn-text)"><i class="fas fa-exclamation-triangle"></i> Git Parameter 입니다. 기본값(<code>${esc(defval)}</code>)이 실제 저장소에 없는 브랜치/태그일 수 있으니 실존하는 이름으로 직접 입력하세요.</div>`
         : '';
     return `<div class="qg-param-row"><label>${esc(name)} <small>(${esc(p.type||'')})</small></label>${input}${warn}</div>`;
 }

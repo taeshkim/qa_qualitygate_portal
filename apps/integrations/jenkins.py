@@ -2,6 +2,7 @@ import base64
 import json
 import logging
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor
 from html.parser import HTMLParser
 from urllib.error import HTTPError, URLError
@@ -50,9 +51,17 @@ class JenkinsClient:
         self.api_token = (
             api_token or db_token or os.getenv("JENKINS_DEFAULT_API_TOKEN", "")
         )
+        # base_url 을 명시적으로 넘기지 않았으면 '내부' Jenkins(전용). 내부는 Keycloak SSO 뒤라
+        # user:api_token Basic auth 가 세션 만료 시 거부되므로 → 읽기는 '익명'(Jenkins 에서
+        # Anonymous Read 권한 부여됨), 트리거는 Generic Webhook Trigger 토큰을 쓴다.
+        # 외부 Jenkins(suite 가 base_url 지정)는 SSO 가 없으니 기존 Basic auth 유지.
+        self.is_internal = not base_url
 
     @property
     def _auth_header(self):
+        # 내부 Jenkins 는 익명(Authorization 헤더 없음) — Basic auth 가 SSO 로그인으로 거부되는 것 회피.
+        if self.is_internal:
+            return ""
         credentials = base64.b64encode(
             f"{self.user}:{self.api_token}".encode()
         ).decode()
@@ -70,7 +79,9 @@ class JenkinsClient:
     def _request(self, path: str, method: str = "GET", data: bytes = None) -> dict:
         url = f"{self.base_url}{path}"
         req = Request(url, method=method, data=data)
-        req.add_header("Authorization", self._auth_header)
+        _ah = self._auth_header
+        if _ah:
+            req.add_header("Authorization", _ah)
         if data:
             req.add_header("Content-Type", "application/x-www-form-urlencoded")
 
@@ -100,10 +111,13 @@ class JenkinsClient:
             )
             if looks_like_sso:
                 msg = (
-                    "Jenkins 인증 실패 (basic auth 가 SSO 로그인으로 리다이렉트됨) — "
-                    "저장된 API 토큰이 만료/취소된 것으로 보입니다. "
-                    "Jenkins 우상단 사용자 메뉴 → Configure → API Token 에서 새 토큰을 발급받아 "
-                    "Portal 의 Suite 자격증명(api_token) 을 갱신해주세요."
+                    "Jenkins 인증 실패 (basic auth 가 SSO 로그인으로 리다이렉트됨). "
+                    "원인은 보통 ① SSO(Keycloak) 세션 만료 — 브라우저에서 Jenkins/Keycloak 에 "
+                    "한 번 로그인하면 잠시 복구됩니다 — 또는 ② API 토큰 만료/취소 입니다. "
+                    "세션 만료가 원인이면 토큰을 재발급해도 idle 타임아웃마다 다시 끊깁니다"
+                    "(근본 해결은 인프라에서 API 경로 SSO 예외/서비스계정/세션유지). "
+                    "토큰을 새로 발급한 경우에만 Jenkins 사용자 메뉴 → Configure → API Token "
+                    "발급 후 Portal 의 Suite 자격증명(api_token)을 갱신하세요."
                 )
                 logger.error(f"Jenkins auth via basic auth rejected (302 -> SSO): {url} location={location}")
                 raise JenkinsError(msg, status=401) from e
@@ -150,6 +164,35 @@ class JenkinsClient:
             })
         return jobs
 
+    def list_children(self, folder_full_name: str = "") -> list:
+        """Jenkins 폴더의 직속 자식 아이템(하위 폴더/잡 모두)을 가볍게 나열.
+
+        `list_folder_jobs` 와 달리 build stage 등 무거운 조회를 하지 않는 **읽기 전용**
+        메서드 — API 잡 자동 싱크(`apps.suites.services_sync.sync_api_suites`)가 폴더
+        트리를 내려가며 후보를 찾을 때 쓴다(트리거/쓰기 없음).
+
+        ``folder_full_name`` 을 비우면 Jenkins 루트(최상위) 를 나열한다.
+        반환 항목: ``{"name", "full_path", "url", "is_folder"}``.
+        """
+        folder_full_name = (folder_full_name or "").strip("/")
+        path = self._job_path_to_url(folder_full_name) if folder_full_name else ""
+        tree = "jobs[name,url,_class]"
+        data = self._request(f"{path}/api/json?tree={tree}")
+        children = []
+        for j in data.get("jobs", []):
+            name = j.get("name") or ""
+            cls = j.get("_class") or ""
+            full_path = f"{folder_full_name}/{name}" if folder_full_name else name
+            children.append({
+                "name": name,
+                "full_path": full_path,
+                "url": j.get("url", ""),
+                # com.cloudbees.hudson.plugins.folder.Folder / jenkins.branch.OrganizationFolder 등
+                # 폴더류 _class 는 모두 "Folder" 를 포함 — 실측(내부 Jenkins) 기준 job 은 미포함.
+                "is_folder": "Folder" in cls,
+            })
+        return children
+
     def get_next_build_number(self, job_full_name: str) -> int:
         """트리거 전에 다음 빌드 번호를 조회."""
         path = self._job_path_to_url(job_full_name)
@@ -177,7 +220,9 @@ class JenkinsClient:
 
         url = f"{self.base_url}{endpoint}"
         req = Request(url, method="POST", data=data if data else b"")
-        req.add_header("Authorization", self._auth_header)
+        _ah = self._auth_header
+        if _ah:
+            req.add_header("Authorization", _ah)
         if data:
             req.add_header("Content-Type", "application/x-www-form-urlencoded")
 
@@ -191,6 +236,45 @@ class JenkinsClient:
                 return {"triggered": True, "queue_url": queue_url, "build_number": next_build}
             body = e.read().decode()[:500]
             raise JenkinsError(f"HTTP {e.code}: {e.reason} - {body}", status=e.code) from e
+
+    def trigger_webhook(self, job_full_name: str, token: str) -> dict:
+        """Generic Webhook Trigger 로 트리거(내부 Jenkins, SSO 무관).
+
+        token 은 '워커별 고유' GWT 토큰 — 그 토큰으로 GWT 설정된 잡만 트리거된다.
+        상관키(build_number)는 기존 trigger_build 와 동일하게 nextBuildNumber 예측값을 쓴다
+        (트리거 직전 익명 read). 토큰을 헤더로 보내 URL/액세스로그 노출을 줄인다.
+        """
+        next_build = self.get_next_build_number(job_full_name)  # 익명 read
+        url = f"{self.base_url}/generic-webhook-trigger/invoke"
+        req = Request(url, method="POST", data=b"")
+        req.add_header("token", token)
+        try:
+            with urlopen(req, timeout=30) as resp:
+                body = resp.read().decode("utf-8", "replace")[:500]
+        except HTTPError as e:
+            body = e.read().decode()[:500]
+            raise JenkinsError(f"GWT invoke HTTP {e.code}: {e.reason} - {body}", status=e.code) from e
+        except URLError as e:
+            raise JenkinsError(f"GWT invoke 연결 실패: {e.reason}") from e
+        # 빈 200 = 성공(이 Jenkins). jobs:null / "Did not find any jobs" = 그 토큰으로 설정된 잡 없음.
+        bl = body.replace(" ", "").lower()
+        if "didnotfindanyjobs" in bl or '"jobs":null' in bl:
+            raise JenkinsError(
+                f"GWT 토큰에 매칭되는 Jenkins 잡이 없습니다 ({job_full_name}) — 해당 워커에 "
+                "Generic Webhook Trigger 가 이 토큰으로 설정됐는지 확인하세요.", status=404,
+            )
+        return {"triggered": True, "build_number": next_build}
+
+    def trigger_job(self, job_full_name: str, gwt_token: str = None) -> dict:
+        """워커 트리거 디스패치 — 내부 Jenkins=GWT 토큰, 외부 Jenkins=기존 Basic auth build."""
+        if self.is_internal:
+            if not gwt_token:
+                raise JenkinsError(
+                    f"이 워커에 GWT 토큰이 없습니다 ({job_full_name}) — Suite 상세에서 토큰을 "
+                    "발급해 Jenkins 워커의 Generic Webhook Trigger 에 등록하세요.", status=400,
+                )
+            return self.trigger_webhook(job_full_name, gwt_token)
+        return self.trigger_build(job_full_name)
 
     def get_job_info(self, job_full_name: str) -> dict:
         path = self._job_path_to_url(job_full_name)
@@ -278,7 +362,9 @@ class JenkinsClient:
         try:
             url = f"{self.base_url}/crumbIssuer/api/json"
             req = Request(url, method="GET")
-            req.add_header("Authorization", self._auth_header)
+            _ah = self._auth_header
+            if _ah:
+                req.add_header("Authorization", _ah)
             with urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read())
                 return {data["crumbRequestField"]: data["crumb"]}
@@ -319,7 +405,9 @@ class JenkinsClient:
         url = f"{self.base_url}/scriptText"
         data = urlencode({"script": groovy}).encode()
         req = Request(url, method="POST", data=data)
-        req.add_header("Authorization", self._auth_header)
+        _ah = self._auth_header
+        if _ah:
+            req.add_header("Authorization", _ah)
         for k, v in headers.items():
             req.add_header(k, v)
         try:
@@ -349,7 +437,9 @@ class JenkinsClient:
         qs = urlencode({"param": param_name})
         url = f"{self.base_url}{path}/descriptorByName/{descriptor}/fillValueItems?{qs}"
         req = Request(url, method="GET")
-        req.add_header("Authorization", self._auth_header)
+        _ah = self._auth_header
+        if _ah:
+            req.add_header("Authorization", _ah)
         try:
             with urlopen(req, timeout=30) as resp:
                 body = resp.read().decode("utf-8", errors="replace")
@@ -425,7 +515,9 @@ class JenkinsClient:
         url = f"{self.base_url}/scriptText"
         data = urlencode({"script": groovy}).encode()
         req = Request(url, method="POST", data=data)
-        req.add_header("Authorization", self._auth_header)
+        _ah = self._auth_header
+        if _ah:
+            req.add_header("Authorization", _ah)
         for k, v in headers.items():
             req.add_header(k, v)
         try:
@@ -452,7 +544,9 @@ class JenkinsClient:
         path = self._job_path_to_url(job_full_name)
         url = f"{self.base_url}{path}/build?delay=0sec"
         req = Request(url, method="GET")
-        req.add_header("Authorization", self._auth_header)
+        _ah = self._auth_header
+        if _ah:
+            req.add_header("Authorization", _ah)
         try:
             with urlopen(req, timeout=30) as resp:
                 html = resp.read().decode("utf-8", errors="replace")
@@ -526,7 +620,9 @@ class JenkinsClient:
         path = self._job_path_to_url(job_full_name)
         url = f"{self.base_url}{path}/{build_number}/consoleText"
         req = Request(url, method="GET")
-        req.add_header("Authorization", self._auth_header)
+        _ah = self._auth_header
+        if _ah:
+            req.add_header("Authorization", _ah)
         try:
             with urlopen(req, timeout=60) as resp:
                 return resp.read().decode("utf-8", errors="replace")
@@ -542,7 +638,9 @@ class JenkinsClient:
         path = self._job_path_to_url(job_full_name)
         url = f"{self.base_url}{path}/{build_number}/stop"
         req = Request(url, method="POST", data=b"")
-        req.add_header("Authorization", self._auth_header)
+        _ah = self._auth_header
+        if _ah:
+            req.add_header("Authorization", _ah)
         try:
             with urlopen(req, timeout=30) as resp:
                 return True
@@ -792,3 +890,112 @@ class _ParamChoicesParser(HTMLParser):
                 self.result[self._cur_name] = list(self._options)
             self._cur_name = None
             self._options = []
+
+
+# ---------------------------------------------------------------------------
+# ECR 이미지 태그 추출 (luxair ImageTagParameter 대응)
+# ---------------------------------------------------------------------------
+
+# jib --target=<ref> 또는 일반 ECR 참조 패턴.
+# 콘솔 라인 예: "jib ... --target=905418085337.dkr.ecr.ap-northeast-2.amazonaws.com/jobko/auth-admin-api:210-20260602_153100 ..."
+# 혹은: " 905418085337.dkr.ecr.ap-northeast-2.amazonaws.com/jobko/auth-worker:210-20260602_153100"
+_TARGET_RE = re.compile(
+    r"--target=[\"']?([^\s\"']+)"     # jib --target=<ref> (값이 따옴표로 감싸인 경우 포함)
+)
+_ECR_REF_RE = re.compile(
+    r"\b(\d+\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/[^\s\"':]+:[^\s\"']+)"  # <registry>/<repo>:<tag>
+)
+
+
+def extract_pushed_image_tag(
+    console_output: "str | None",
+    build_number: "int | None",
+    repo_hint: "str | None" = None,
+) -> "str | None":
+    """create-image 빌드 콘솔에서 ECR 에 실제 푸시된 이미지 태그를 추출한다.
+
+    알고리즘:
+      1) ``--target=<ref>`` 토큰을 모두 찾는다.
+      2) 없으면 일반 ECR 참조 패턴으로 폴백 스캔.
+      3) ref 에서 마지막 `:` 기준으로 tag 를 분리한다.
+      4) tag 가 ``{build_number}-`` 로 시작하는 후보만 채택(이 빌드 소속 보장).
+         build_number 가 falsy 이면 prefix 가드를 건너뛰지 않고 전부 거부한다.
+      5) repo_hint(예: "jobko/auth-admin-api") 가 주어지면 ref 경로가 해당 repo 로
+         끝나는 후보를 먼저 추린다. 0건이면 전체 후보로 폴백.
+      6) 유효 후보 1개 → tag 반환.  0개 → None.
+         repo_hint 폴백 후에도 후보가 2개 이상이면 None (멀티모듈 모호).
+
+    Parameters
+    ----------
+    console_output:
+        ``QualityGateRun.image_console_output`` 값. None / 빈 문자열이면 None 반환.
+    build_number:
+        ``QualityGateRun.image_build_number``. None / 0 이면 prefix 가드에서 전부 거부.
+    repo_hint:
+        ECR repo 경로 (예 "jobko/auth-admin-api"). suffix 매칭. 없어도 동작.
+    """
+    if not console_output:
+        return None
+    if not build_number:
+        return None
+
+    # 중단/실패 빌드 방어: shell 은 jib 명령을 실행 '전에' echo 하므로
+    # ("+ jib ... --target=<ref>:<tag>"), 중간에 죽은 빌드(Finished: FAILURE/ABORTED)
+    # 콘솔에도 --target 라인이 남지만 이미지는 ECR 에 푸시되지 않았다. jib 가
+    # --verbosity=lifecycle 라 push-success 마커("Built and pushed image as")를 안 찍어서,
+    # 빌드 최종 상태가 push 여부를 가릴 유일한 신뢰 판별자다. SUCCESS 가 아니면 신뢰하지 않는다.
+    # (콘솔은 빌드 완료 후에만 저장되므로 SUCCESS 빌드엔 항상 이 마커가 존재한다.)
+    if "Finished: SUCCESS" not in console_output:
+        return None
+
+    prefix = f"{build_number}-"
+
+    # 1) --target 후보 수집
+    candidates: list[tuple[str, str]] = []  # [(ref, tag), ...]
+    for m in _TARGET_RE.finditer(console_output):
+        ref = m.group(1).strip("\"'")
+        if ":" not in ref:
+            continue
+        tag = ref.rsplit(":", 1)[1]
+        if tag.startswith(prefix):
+            candidates.append((ref, tag))
+
+    # 2) --target 없으면 일반 ECR 참조 폴백
+    if not candidates:
+        for m in _ECR_REF_RE.finditer(console_output):
+            ref = m.group(1).strip("\"'")
+            if ":" not in ref:
+                continue
+            tag = ref.rsplit(":", 1)[1]
+            if tag.startswith(prefix):
+                candidates.append((ref, tag))
+
+    if not candidates:
+        return None
+
+    # 3) 중복 라인 제거 (같은 ref:tag 가 여러 번 echo 되는 빌드 대비)
+    seen = set()
+    deduped = []
+    for ref, tag in candidates:
+        if (ref, tag) not in seen:
+            seen.add((ref, tag))
+            deduped.append((ref, tag))
+    candidates = deduped
+
+    # 4) repo_hint suffix 매칭으로 좁히기
+    if repo_hint:
+        hint_norm = repo_hint.strip("/").lower()
+        narrowed = [
+            (ref, tag) for ref, tag in candidates
+            if ref.lower().rsplit(":", 1)[0].endswith(hint_norm)
+        ]
+        if narrowed:
+            candidates = narrowed
+        # narrowed 가 0건이면 전체 candidates 로 폴백 (hint 무시)
+
+    # 5) 후보들의 tag 가 모두 동일하면(같은 태그를 여러 repo 에 푸시한 멀티모듈 포함)
+    #    그 태그를 반환. 서로 다른 태그가 섞여 모호하면 None.
+    distinct_tags = {tag for _, tag in candidates}
+    if len(distinct_tags) == 1:
+        return next(iter(distinct_tags))
+    return None

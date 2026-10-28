@@ -3,295 +3,592 @@
 {% block title %}Dashboard - Quality Gate Portal{% endblock %}
 
 {% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-/* 라이트 테마 기준 — metric-card 와 동일 톤(white 배경 / gray-800 본문). */
-.dora-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:8px}
-.dora-card{padding:14px 16px;border:1px solid var(--gray-200);border-radius:8px;background:white;box-shadow:0 1px 3px rgba(0,0,0,0.05)}
-.dora-label{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--gray-500);font-weight:700}
-.dora-name{font-size:0.88rem;color:var(--gray-700);margin-top:2px;font-weight:500}
-.dora-value{font-size:1.9rem;font-weight:700;margin-top:6px;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--gray-800)}
-.dora-grade{display:inline-block;font-size:0.72rem;padding:2px 9px;border-radius:10px;margin-top:6px;font-weight:700;letter-spacing:0.04em}
-.dora-grade.elite  {background:#dcfce7;color:#15803d;border:1px solid #86efac}
-.dora-grade.high   {background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd}
-.dora-grade.medium {background:#fef3c7;color:#a16207;border:1px solid #fcd34d}
-.dora-grade.low    {background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5}
-.dora-grade.na     {background:var(--gray-100);color:var(--gray-500);border:1px solid var(--gray-300)}
-.dora-sub{font-size:0.74rem;color:var(--gray-500);margin-top:6px}
-/* ? 도움말 버튼 (헤더 옆) */
-.dora-help-btn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--gray-100);color:var(--gray-600);font-size:0.78rem;font-weight:700;border:1px solid var(--gray-300);cursor:pointer;margin-left:8px;vertical-align:middle;line-height:1;padding:0}
-.dora-help-btn:hover{background:var(--gray-200);color:var(--gray-800)}
-/* DORA 도움말 모달 */
-#dora-help-modal{max-width:720px;width:90%;padding:0;border:none;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,0.25)}
-#dora-help-modal::backdrop{background:rgba(15,23,42,0.55)}
-.dora-modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--gray-200);background:var(--gray-50);border-radius:10px 10px 0 0}
-.dora-modal-head h3{margin:0;font-size:1.05rem;color:var(--gray-800)}
-.dora-modal-close{background:transparent;border:none;font-size:1.4rem;line-height:1;color:var(--gray-500);cursor:pointer;padding:4px 8px;border-radius:6px}
-.dora-modal-close:hover{background:var(--gray-200);color:var(--gray-800)}
-.dora-modal-body{padding:16px 18px;max-height:70vh;overflow-y:auto;font-size:0.85rem;line-height:1.55;color:var(--gray-700)}
-.dora-modal-body h4{margin:0 0 4px 0;font-size:0.92rem;color:var(--gray-800)}
-.dora-modal-body table{width:100%;margin-top:6px;font-size:0.82rem;border-collapse:collapse}
-.dora-modal-body th,.dora-modal-body td{padding:4px 8px;text-align:left;border-bottom:1px solid var(--gray-200)}
-.dora-modal-body th{color:var(--gray-600);font-weight:600;background:var(--gray-50)}
-.dora-modal-body tbody tr:last-child td{border-bottom:none}
-.dora-help-section + .dora-help-section{margin-top:14px}
-@media (max-width:900px){.dora-cards{grid-template-columns:repeat(2,1fr)}}
+/* ══ Glass / Gradient 대시보드 — 이 스타일 블록은 대시보드 페이지에서만 로드되므로
+      여기 규칙은 대시보드에만 적용된다(다른 화면 무영향). ══ */
+
+/* 오로라 배경(.app-bg)·타이틀 그라데이션(.page-header h1)은 전 페이지 공통으로
+   style.css 에 있다 — 대시보드도 그걸 그대로 쓰므로 여기선 정의하지 않는다.
+   대시보드 글래스 카드는 그 전역 .app-bg 를 backdrop-filter 로 blur 한다. */
+.dash { position: relative; }
+
+/* 공통 glass 표면 (메트릭/차트/테이블 카드) */
+.metric-card, .chart-card, .dash > .card {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(16px) saturate(165%);
+    backdrop-filter: blur(16px) saturate(165%);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 10px 32px var(--shadow-color), inset 0 1px 0 var(--glass-border);
+}
+
+/* ── 메트릭 카드 ── */
+.metric-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
+.metric-card {
+    position: relative;
+    padding: 18px 20px 16px;
+    border-radius: 16px;
+    overflow: hidden;
+    transition: transform .18s ease, box-shadow .18s ease;
+}
+.metric-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 18px 42px rgba(30,41,59,0.16), inset 0 1px 0 rgba(255,255,255,0.6);
+}
+.metric-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 4px;
+}
+.metric-card.card-pass::before  { background: linear-gradient(90deg, #34d399, #10b981); }
+.metric-card.card-fail::before  { background: linear-gradient(90deg, #fb7185, #f43f5e); }
+.metric-card.card-total::before { background: linear-gradient(90deg, #6366f1, #06b6d4); }
+.metric-card.card-run::before   { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+
+/* 카드 우상단 컬러 글로우 (은은하게) */
+.metric-card::after {
+    content: '';
+    position: absolute; top: -42px; right: -32px;
+    width: 132px; height: 132px; border-radius: 50%;
+    filter: blur(20px); opacity: 0.55; pointer-events: none;
+}
+.metric-card.card-pass::after  { background: radial-gradient(circle, rgba(16,185,129,0.40), transparent 70%); }
+.metric-card.card-fail::after  { background: radial-gradient(circle, rgba(244,63,94,0.36), transparent 70%); }
+.metric-card.card-total::after { background: radial-gradient(circle, rgba(79,70,229,0.36), transparent 70%); }
+.metric-card.card-run::after   { background: radial-gradient(circle, rgba(245,158,11,0.36), transparent 70%); }
+
+.metric-card .mc-icon { position: absolute; top: 14px; right: 16px; font-size: 1.7rem; opacity: 0.22; }
+.metric-card.card-pass .mc-icon  { color: #059669; }
+.metric-card.card-fail .mc-icon  { color: #e11d48; }
+.metric-card.card-total .mc-icon { color: #4f46e5; }
+.metric-card.card-run .mc-icon   { color: #d97706; }
+
+.metric-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--gray-500); font-weight: 700; position: relative; }
+.metric-value { font-size: 2.3rem; font-weight: 800; line-height: 1.1; margin: 6px 0 2px; font-variant-numeric: tabular-nums; position: relative; }
+.metric-card.card-pass .metric-value  { color: #059669; }
+.metric-card.card-fail .metric-value  { color: #e11d48; }
+.metric-card.card-run .metric-value   { color: #d97706; }
+/* total 카드 값 = 브랜드 그라데이션 텍스트 */
+.metric-card.card-total .metric-value {
+    background: linear-gradient(90deg, #6366f1, #06b6d4);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+}
+.metric-sub { font-size: 0.75rem; color: var(--gray-500); position: relative; }
+
+/* ── 차트 그리드 ── */
+/* 1행: 일별 추이 + Suite Pass Rate (2열) */
+.chart-grid { display: grid; grid-template-columns: 2fr 1.5fr; gap: 16px; margin-bottom: 22px; }
+/* 2행: doughnut 2개 (2열, 균등) */
+.chart-grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 22px; }
+.chart-card { border-radius: 16px; padding: 16px 18px; }
+.chart-card h3 {
+    margin: 0 0 12px; font-size: 0.84rem; font-weight: 700;
+    color: var(--gray-700); text-transform: uppercase; letter-spacing: 0.05em;
+    display: flex; align-items: center; gap: 8px;
+}
+.chart-card h3 .chart-ic {
+    width: 24px; height: 24px; border-radius: 8px; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #6366f1, #06b6d4); color: #fff; font-size: 0.74rem;
+    box-shadow: 0 4px 12px rgba(79,70,229,0.35);
+}
+.chart-wrap { position: relative; height: 300px; }  /* 차트가 카드 영역을 충분히 채우도록 */
+.doughnut-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; }
+.doughnut-center .dc-num  {
+    /* 소수점 3자리(예: 99.123%) 가 도넛 구멍(cutout 66%)을 넘지 않게 축소 */
+    font-size: 1.35rem; font-weight: 800; line-height: 1;
+    background: linear-gradient(90deg, #6366f1, #06b6d4);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+}
+.doughnut-center .dc-label{ font-size: 0.66rem; color: var(--gray-500); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* ── 판정 대기 카드 ── */
+.untriaged-card {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    border-radius: 16px; padding: 18px 22px; margin-bottom: 22px;
+}
+.untriaged-card .ut-left { display: flex; align-items: center; gap: 14px; }
+.untriaged-card .ut-icon {
+    width: 44px; height: 44px; border-radius: 12px; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #f43f5e, #fb7185); color: #fff; font-size: 1.2rem;
+    box-shadow: 0 4px 14px rgba(244,63,94,0.35);
+}
+.untriaged-card .ut-icon.ut-icon-ok {
+    background: linear-gradient(135deg, #10b981, #34d399);
+    box-shadow: 0 4px 14px rgba(16,185,129,0.35);
+}
+.untriaged-card .ut-label { font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gray-500); font-weight: 700; }
+.untriaged-card .ut-count { font-size: 2rem; font-weight: 800; line-height: 1.1; color: #e11d48; font-variant-numeric: tabular-nums; }
+.untriaged-card .ut-desc  { font-size: 0.82rem; color: var(--gray-500); margin-top: 2px; }
+.untriaged-card .ut-ok-msg { font-size: 0.96rem; font-weight: 600; color: #059669; }
+
+/* ── 최근 실행 카드/테이블 ── */
+.dash > .card { border-radius: 16px; }
+.section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.section-head h2 { margin: 0; }
+.section-head .view-all { font-size: 0.82rem; color: #4f46e5; text-decoration: none; white-space: nowrap; font-weight: 600; }
+.section-head .view-all:hover { color: #06b6d4; text-decoration: underline; }
+.dash .table th { background: rgba(99,102,241,0.07); }
+.dash .table tbody tr:hover { background: rgba(99,102,241,0.05); }
+
+@media (max-width: 1100px) {
+    .metric-cards    { grid-template-columns: repeat(2, 1fr); }
+    .chart-grid      { grid-template-columns: 1fr 1fr; }
+    .chart-grid-2col { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 700px) {
+    .metric-cards    { grid-template-columns: 1fr 1fr; }
+    .chart-grid      { grid-template-columns: 1fr; }
+    .chart-grid-2col { grid-template-columns: 1fr; }
+}
 </style>
 {% endblock %}
 
 {% block content %}
+<div class="dash">
+
 <div class="page-header">
-    <h1>QG Dashboard</h1>
+    <h1>Dashboard</h1>
 </div>
 
-<!-- Metric Cards (7일 요약) -->
+<!-- ── 메트릭 카드 (14일 Suite 기준) ── -->
 <div class="metric-cards">
-    <div class="metric-card">
-        <div class="metric-label">QG Pass Rate (7d)</div>
-        <div class="metric-value {% if metrics.pass_rate >= 90 %}text-success{% elif metrics.pass_rate >= 50 %}text-warning{% else %}text-danger{% endif %}">
-            {{ metrics.pass_rate }}%
-        </div>
-        <div class="metric-sub">{{ metrics.passed_count }} passed / {{ metrics.total_runs }} total</div>
+    <div class="metric-card card-pass">
+        <i class="fas fa-check-circle mc-icon"></i>
+        <div class="metric-label">14d Pass Rate</div>
+        <div class="metric-value">{{ metrics.pass_rate }}%</div>
+        <div class="metric-sub">{{ metrics.passed_count }} passed / {{ metrics.total_runs }} runs</div>
     </div>
-    <div class="metric-card">
-        <div class="metric-label">QG Failures (7d)</div>
-        <div class="metric-value {% if metrics.failed_count == 0 %}text-success{% else %}text-danger{% endif %}">
-            {{ metrics.failed_count }}
-        </div>
+    <div class="metric-card card-total">
+        <i class="fas fa-play-circle mc-icon"></i>
+        <div class="metric-label">14d Runs</div>
+        <div class="metric-value">{{ metrics.total_runs }}</div>
+        <div class="metric-sub">오늘 {{ metrics.today_count }}건</div>
+    </div>
+    <div class="metric-card card-fail">
+        <i class="fas fa-times-circle mc-icon"></i>
+        <div class="metric-label">14d Failures</div>
+        <div class="metric-value">{{ metrics.failed_count }}</div>
         <div class="metric-sub">out of {{ metrics.total_runs }} runs</div>
     </div>
-    <div class="metric-card">
-        <div class="metric-label">Total Runs (7d)</div>
-        <div class="metric-value">{{ metrics.total_runs }}</div>
-        <div class="metric-sub">last 7 days</div>
-    </div>
-    <div class="metric-card">
-        <div class="metric-label">Running Gates</div>
-        <div class="metric-value {% if metrics.running_count > 0 %}text-warning{% endif %}">{{ metrics.running_count }}</div>
-        <div class="metric-sub">currently running</div>
+    <div class="metric-card card-run">
+        <i class="fas fa-spinner mc-icon"></i>
+        <div class="metric-label">Running Now</div>
+        <div class="metric-value">{{ metrics.running_count }}</div>
+        <div class="metric-sub">현재 실행 중</div>
     </div>
 </div>
 
-<!-- DORA Metrics (30일 윈도우) -->
-<div class="card" style="margin-bottom:16px">
-    <h2 class="card-title">
-        DORA Metrics
-        <span class="text-muted" style="font-size:0.78rem;font-weight:400;margin-left:8px">최근 30일</span>
-        <button type="button" class="dora-help-btn" title="DORA 지표 설명 / 산식 / 등급 기준"
-                onclick="document.getElementById('dora-help-modal').showModal()">?</button>
-    </h2>
+<!-- Chart.js 데이터 전달 (XSS 안전) -->
+{{ daily|json_script:"chart-daily" }}
+{{ suite_stats|json_script:"chart-suite-stats" }}
+{{ dist_quality|json_script:"chart-dist-quality" }}
+{{ dist_skip|json_script:"chart-dist-skip" }}
 
-    <dialog id="dora-help-modal">
-        <div class="dora-modal-head">
-            <h3>DORA Metrics — 정의 / 산식 / 등급 기준</h3>
-            <button type="button" class="dora-modal-close" aria-label="닫기"
-                    onclick="document.getElementById('dora-help-modal').close()">×</button>
+<!-- ── 차트 1행: 일별 추이 + Suite Pass Rate (2열) ── -->
+<div class="chart-grid">
+    <!-- a) 일별 실행 추이 (14일) -->
+    <div class="chart-card">
+        <h3><span class="chart-ic"><i class="fas fa-chart-bar"></i></span>일별 실행 추이 (14일)</h3>
+        <div class="chart-wrap">
+            <canvas id="chart-daily-bar"></canvas>
         </div>
-        <div class="dora-modal-body">
-            <p style="margin:0 0 10px 0">
-                <strong>DORA Metrics</strong> 는 Google DevOps Research and Assessment 팀이 정의한 DevOps 성숙도 표준 4지표.
-                아래 값은 모두 <strong>최근 30일</strong> 윈도우에서 산정. 등급 임계는 Accelerate 2023 보고서 기준.
-            </p>
+    </div>
 
-            <div class="dora-help-section">
-                <h4>DF — Deployment Frequency (배포 빈도)</h4>
-                <div>정의: 단위 기간당 성공적으로 종료된 Quality Gate Run 수.</div>
-                <div>산식: <code>count(status IN {COMPLETED, QG_PASSED}) / 30 days</code></div>
-                <table>
-                    <thead><tr><th>등급</th><th>임계 (per day)</th></tr></thead>
-                    <tbody>
-                        <tr><td><span class="dora-grade elite">Elite</span></td><td>≥ 1/day</td></tr>
-                        <tr><td><span class="dora-grade high">High</span></td><td>≥ 1/week (≈ 0.143/day)</td></tr>
-                        <tr><td><span class="dora-grade medium">Medium</span></td><td>≥ 1/month (≈ 0.033/day)</td></tr>
-                        <tr><td><span class="dora-grade low">Low</span></td><td>&lt; 1/month</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="dora-help-section">
-                <h4>LT — Lead Time for Changes (변경 리드타임)</h4>
-                <div>정의: 변경이 시작되어 배포 완료까지 걸리는 시간의 중앙값.</div>
-                <div>산식: 성공 Run 마다 <code>(prod_completed_at or deploy_completed_at) − created_at</code> 의 <code>median</code></div>
-                <table>
-                    <thead><tr><th>등급</th><th>임계 (중앙값)</th></tr></thead>
-                    <tbody>
-                        <tr><td><span class="dora-grade elite">Elite</span></td><td>&lt; 1 day</td></tr>
-                        <tr><td><span class="dora-grade high">High</span></td><td>&lt; 1 week</td></tr>
-                        <tr><td><span class="dora-grade medium">Medium</span></td><td>&lt; 1 month</td></tr>
-                        <tr><td><span class="dora-grade low">Low</span></td><td>≥ 1 month</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="dora-help-section">
-                <h4>CFR — Change Failure Rate (변경 실패율)</h4>
-                <div>정의: 배포 시도 중 실패로 끝난 비율. <em>취소(Cancelled)</em> 는 분모/분자 양쪽에서 제외.</div>
-                <div>산식: <code>failures / (failures + successes) × 100</code>
-                    <br>failures = <code>FAILED, DEPLOY_FAILED, PROD_DEPLOY_FAILED, IMAGE_BUILD_FAILED</code>
-                    <br>successes = <code>COMPLETED, QG_PASSED</code></div>
-                <table>
-                    <thead><tr><th>등급</th><th>임계 (실패율)</th></tr></thead>
-                    <tbody>
-                        <tr><td><span class="dora-grade elite">Elite</span></td><td>≤ 15%</td></tr>
-                        <tr><td><span class="dora-grade high">High</span></td><td>≤ 30%</td></tr>
-                        <tr><td><span class="dora-grade medium">Medium</span></td><td>≤ 45%</td></tr>
-                        <tr><td><span class="dora-grade low">Low</span></td><td>&gt; 45%</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="dora-help-section">
-                <h4>MTTR — Mean Time to Recovery (장애 복구 시간)</h4>
-                <div>정의: 실패한 Run 이후 같은 게이트에서 다음 성공까지 걸린 시간의 중앙값.</div>
-                <div>산식: 게이트별로 시간순 정렬 → <code>FAIL.created_at</code> 마킹 → 다음 <code>SUCCESS.created_at</code> 까지의 차이 수집 → <code>median</code></div>
-                <table>
-                    <thead><tr><th>등급</th><th>임계 (중앙값)</th></tr></thead>
-                    <tbody>
-                        <tr><td><span class="dora-grade elite">Elite</span></td><td>&lt; 1 hour</td></tr>
-                        <tr><td><span class="dora-grade high">High</span></td><td>&lt; 1 day</td></tr>
-                        <tr><td><span class="dora-grade medium">Medium</span></td><td>&lt; 1 week</td></tr>
-                        <tr><td><span class="dora-grade low">Low</span></td><td>≥ 1 week</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <p class="text-muted" style="font-size:0.75rem;margin:14px 0 0 0">
-                등급 분기 함수: <code>apps/dashboard/views.py:_dora_grade_{df,lt,cfr,mttr}</code>.
-                임계 수치만 if 조건에서 조정 가능 (사내 기준에 맞춰).
-            </p>
-        </div>
-    </dialog>
-    <p class="text-muted" style="font-size:0.82rem;margin-top:4px;margin-bottom:12px">
-        DevOps 성숙도 표준 4지표.
-        등급: <span class="dora-grade elite">Elite</span>
-        <span class="dora-grade high">High</span>
-        <span class="dora-grade medium">Medium</span>
-        <span class="dora-grade low">Low</span>
-        (Accelerate 2023 기준)
-    </p>
-    <div class="dora-cards">
-        <!-- Deployment Frequency -->
-        <div class="dora-card">
-            <div class="dora-label">DF</div>
-            <div class="dora-name">Deployment Frequency</div>
-            <div class="dora-value">{{ dora.df.value }}</div>
-            <span class="dora-grade {{ dora.df.level }}">{{ dora.df.grade }}</span>
-            <div class="dora-sub">성공 종료 {{ dora.df.count }}건 / 30일</div>
-        </div>
-        <!-- Lead Time for Changes -->
-        <div class="dora-card">
-            <div class="dora-label">LT</div>
-            <div class="dora-name">Lead Time for Changes</div>
-            <div class="dora-value">{{ dora.lt.value }}</div>
-            <span class="dora-grade {{ dora.lt.level }}">{{ dora.lt.grade }}</span>
-            <div class="dora-sub">created → 완료 중앙값 (표본 {{ dora.lt.samples }})</div>
-        </div>
-        <!-- Change Failure Rate -->
-        <div class="dora-card">
-            <div class="dora-label">CFR</div>
-            <div class="dora-name">Change Failure Rate</div>
-            <div class="dora-value">{{ dora.cfr.value }}</div>
-            <span class="dora-grade {{ dora.cfr.level }}">{{ dora.cfr.grade }}</span>
-            <div class="dora-sub">실패 {{ dora.cfr.failures }} / 총 {{ dora.cfr.failures|add:dora.cfr.successes }}</div>
-        </div>
-        <!-- MTTR -->
-        <div class="dora-card">
-            <div class="dora-label">MTTR</div>
-            <div class="dora-name">Mean Time to Recovery</div>
-            <div class="dora-value">{{ dora.mttr.value }}</div>
-            <span class="dora-grade {{ dora.mttr.level }}">{{ dora.mttr.grade }}</span>
-            <div class="dora-sub">FAIL → PASS 중앙값 (표본 {{ dora.mttr.samples }})</div>
+    <!-- b) Suite별 Pass Rate (14일) -->
+    <div class="chart-card">
+        <h3><span class="chart-ic"><i class="fas fa-list-ol"></i></span>Suite 별 Pass Rate (14일)</h3>
+        <div class="chart-wrap">
+            <canvas id="chart-suite-hbar"></canvas>
         </div>
     </div>
 </div>
 
-<!-- 최근 배포 내역 -->
+<!-- ── 차트 2행: 서비스 품질 지표 + 퀄리티게이트 품질 지표 (2 doughnut) ── -->
+<div class="chart-grid-2col">
+    <!-- d) 서비스 품질 지표 (Pass / 장애) -->
+    <div class="chart-card">
+        <h3><span class="chart-ic"><i class="fas fa-heart-pulse"></i></span>서비스 품질 지표 (14일)</h3>
+        <div class="chart-wrap" style="position:relative;width:100%;max-width:240px;margin:0 auto">
+            <canvas id="chart-dist-quality-canvas"></canvas>
+            <div class="doughnut-center" id="doughnut-quality-center">
+                <div class="dc-num" id="doughnut-quality-total">-</div>
+                <div class="dc-label">Pass Rate</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- e) 퀄리티게이트 품질 지표 (Pass / Skip) -->
+    <div class="chart-card">
+        <h3><span class="chart-ic"><i class="fas fa-robot"></i></span>퀄리티게이트 품질 지표 (14일)</h3>
+        <div class="chart-wrap" style="position:relative;width:100%;max-width:240px;margin:0 auto">
+            <canvas id="chart-dist-skip-canvas"></canvas>
+            <div class="doughnut-center" id="doughnut-skip-center">
+                <div class="dc-num" id="doughnut-skip-total">-</div>
+                <div class="dc-label">Pass Rate</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── 판정 대기 카드 ── -->
+{% if untriaged_count %}
+<div class="untriaged-card dash-card card">
+    <div class="ut-left">
+        <span class="ut-icon"><i class="fas fa-exclamation-triangle"></i></span>
+        <div>
+            <div class="ut-label">미 장애 판정 분류건</div>
+            <div class="ut-count">{{ untriaged_count }}건</div>
+            <div class="ut-desc">판정 대기 중인 실패 — 아직 장애/Skip 분류가 완료되지 않았습니다.</div>
+        </div>
+    </div>
+    <a href="{% url 'suites:untriaged_list' %}" class="btn btn-danger" style="white-space:nowrap">판정하러 가기 &rarr;</a>
+</div>
+{% else %}
+<div class="untriaged-card dash-card card">
+    <div class="ut-left">
+        <span class="ut-icon ut-icon-ok"><i class="fas fa-check"></i></span>
+        <div class="ut-ok-msg">판정 대기 중인 실패가 없습니다 🎉</div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ── 최근 Test Suites 실행 내역 ── -->
 <div class="card">
-    <h2 class="card-title">최근 Quality Gate 실행 내역</h2>
+    <div class="section-head">
+        <h2 class="card-title" style="margin:0">최근 Test Suites 실행 내역</h2>
+        <a href="{% url 'suites:run_list' %}" class="view-all">전체 보기 &rarr;</a>
+    </div>
     <div class="table-wrapper">
         <table class="table">
             <thead>
                 <tr>
-                    <th>Time</th>
-                    <th>Gate</th>
-                    <th>게이트 통계</th>
-                    <th>Status</th>
-                    <th>Deploy</th>
-                    <th>Tests</th>
-                    <th>Result</th>
-                    <th>By</th>
+                    <th>#</th>
+                    <th>Suite</th>
+                    <th>상태</th>
+                    <th>결과</th>
+                    <th>P / F / T</th>
+                    <th>트리거</th>
+                    <th>시작</th>
                     <th></th>
                 </tr>
             </thead>
             <tbody>
-                {% for run in recent_runs %}
+                {% for run in recent_suite_runs %}
                 <tr>
-                    <td>{{ run.created_at|date:"m/d H:i" }}</td>
                     <td>
-                        <strong>{{ run.gate.name }}</strong>
-                        <span class="text-muted mono" style="font-size:0.85em">#{{ run.seq_no }}</span>
-                    </td>
-                    <td>
-                        {% if run.gate_lifetime_stats %}
-                            <span class="mono" style="font-size:0.88em">
-                                {{ run.gate_lifetime_stats.success }}/{{ run.gate_lifetime_stats.total }}
-                                <span class="text-muted">({{ run.gate_lifetime_stats.rate }}%)</span>
-                            </span>
+                        {% if run.seq_no %}
+                        <span class="mono" style="font-size:0.85em;color:var(--gray-500)">#{{ run.seq_no }}</span>
                         {% else %}
-                            <span class="text-muted">-</span>
+                        <span class="text-muted">-</span>
                         {% endif %}
                     </td>
+                    <td><strong>{{ run.suite.name }}</strong></td>
                     <td>
-                        {% if run.is_terminal %}
-                        <span class="status-badge {% if run.is_success %}status-pass{% elif run.status == "cancelled" %}status-na{% else %}status-fail{% endif %}">
-                            {% if run.status == "cancelled" %}Cancelled{% else %}Completed{% endif %}
-                        </span>
-                        {% else %}
-                        <span class="status-badge status-running">{{ run.status_display }}</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if run.deploy_completed_at %}
-                        <span class="status-badge status-pass">Done</span>
-                        {% elif run.status == "deploy_failed" %}
-                        <span class="status-badge status-fail">Failed</span>
-                        {% elif run.status == "deploying" %}
+                        {% if run.status == 'running' %}
                         <span class="status-badge status-running">Running</span>
-                        {% else %}-{% endif %}
+                        {% else %}
+                        <span class="status-badge status-na">{{ run.get_status_display }}</span>
+                        {% endif %}
                     </td>
                     <td>
-                        {% for tr in run.test_runs.all %}
-                            {% if tr.status == "passed" %}
-                            <span class="status-badge status-pass" title="{{ tr.gate_suite.test_suite.name }}">P</span>
-                            {% elif tr.status == "failed" %}
-                            <span class="status-badge status-fail" title="{{ tr.gate_suite.test_suite.name }}">F</span>
-                            {% elif tr.status == "testing" or tr.status == "waiting" %}
-                            <span class="status-badge status-running" title="{{ tr.gate_suite.test_suite.name }}">R</span>
+                        {% if run.status == 'completed' %}
+                            {% if run.triage_result == 'fail' %}
+                            <span class="status-badge status-fail">FAIL</span>
+                            {% elif run.triage_result == 'skip' %}
+                            <span class="status-badge status-na" title="Slack Triage — 실패했지만 자동화 판정 오류 의심 및 자동화 코드 이슈 추정으로 Skip 분류">SKIP</span>
+                            {% elif run.triage_result == 'aborted' %}
+                            <span class="status-badge status-na" title="실패 Job 이 전부 중단(ABORTED) — 스케줄 정지/취소 등. 장애로 집계하지 않음">ABORTED</span>
                             {% else %}
-                            <span class="status-badge status-na" title="{{ tr.gate_suite.test_suite.name }}">-</span>
+                            <span class="status-badge status-pass">PASS</span>
                             {% endif %}
-                        {% endfor %}
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
                     </td>
+                    <td class="mono" style="font-size:0.88em">{{ run.passed_jobs }} / {{ run.failed_jobs }} / {{ run.total_jobs }}</td>
                     <td>
-                        {% if run.result_label == "PASS" or run.result_label == "QG PASS" %}
-                        <strong class="text-success">{{ run.result_label }}</strong>
-                        {% elif run.result_label == "FAIL" %}
-                        <strong class="text-danger">FAIL</strong>
-                        {% elif run.result_label == "CANCELLED" %}
-                        <strong class="text-muted">Cancelled</strong>
-                        {% else %}-{% endif %}
+                        {% if run.triggered_by %}
+                        {{ run.triggered_by.username }}
+                        {% else %}
+                        <span class="text-muted" title="스케줄/자동 트리거">스케줄/자동</span>
+                        {% endif %}
                     </td>
-                    <td>{{ run.triggered_by|default:"-" }}</td>
-                    <td>
-                        <a href="{% url 'qualitygates:run_detail' run.pk %}" class="btn btn-sm btn-secondary">Detail</a>
-                    </td>
+                    <td>{{ run.started_at|date:"m-d H:i" }}</td>
+                    <td><a href="{% url 'suites:run_detail' run.pk %}" class="btn btn-sm btn-secondary">Detail</a></td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="9" class="text-center text-muted">실행 내역이 없습니다.</td>
+                    <td colspan="8" class="text-center text-muted" style="padding:24px">실행 내역이 없습니다.</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
+
+</div>{# /.dash #}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+
+    /* CDN 로드 실패 가드 — Chart.js 가 없으면 차트 자리에 안내만 남기고 종료
+       (표/카드 등 나머지 화면은 정상 동작). */
+    if (typeof Chart === 'undefined') {
+        document.querySelectorAll('.chart-grid canvas, .chart-grid-2col canvas').forEach(function (c) {
+            c.parentElement.innerHTML = '<p class="text-muted" style="text-align:center;padding:32px 0;font-size:0.82rem">차트 라이브러리(Chart.js CDN)를 불러오지 못했습니다.</p>';
+        });
+        return;
+    }
+
+    /* 공통 차트 톤 — glass 배경 위 은은한 그리드/축. */
+    Chart.defaults.color = '#64748b';
+    Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    const GRID = 'rgba(99,102,241,0.10)';
+
+    /* 세로(↓) 그라데이션 채움 생성 — bar 차트용. */
+    function vGrad(canvas, top, bottom) {
+        const g = canvas.getContext('2d').createLinearGradient(0, 0, 0, canvas.height || 180);
+        g.addColorStop(0, top);
+        g.addColorStop(1, bottom);
+        return g;
+    }
+
+    /* 초 → "Xs / Xm / X.Xh" 짧은 표기 (suite 툴팁용) */
+    function fmtDur(sec) {
+        if (sec == null || sec < 0) return null;
+        if (sec < 60) return Math.round(sec) + 's';
+        if (sec < 3600) return Math.round(sec / 60) + 'm';
+        return (sec / 3600).toFixed(1) + 'h';
+    }
+
+    /* ── 데이터 파싱 ── */
+    const daily       = JSON.parse(document.getElementById('chart-daily').textContent        || '[]');
+    const suiteStats  = JSON.parse(document.getElementById('chart-suite-stats').textContent  || '[]');
+    const distQuality = JSON.parse(document.getElementById('chart-dist-quality').textContent || '{"pass":0,"fail":0}');
+    const distSkip    = JSON.parse(document.getElementById('chart-dist-skip').textContent    || '{"pass":0,"skip":0}');
+
+    /* ── a) 일별 stacked bar (14일) — 그라데이션 채움 ── */
+    (function buildDailyBar() {
+        const ctx = document.getElementById('chart-daily-bar');
+        if (!ctx) return;
+        if (!daily.length) {
+            ctx.parentElement.innerHTML = '<p class="text-muted" style="text-align:center;padding:32px 0;font-size:0.82rem">데이터가 없습니다.</p>';
+            return;
+        }
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: daily.map(d => d.label),
+                datasets: [
+                    {
+                        label: 'Pass',
+                        data: daily.map(d => d.pass),
+                        backgroundColor: vGrad(ctx, 'rgba(52,211,153,0.95)', 'rgba(16,185,129,0.55)'),
+                        borderRadius: 4,
+                        stack: 'stack0',
+                    },
+                    {
+                        label: 'Fail',
+                        data: daily.map(d => d.fail),
+                        backgroundColor: vGrad(ctx, 'rgba(251,113,133,0.95)', 'rgba(244,63,94,0.55)'),
+                        borderRadius: 4,
+                        stack: 'stack0',
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                onClick: function (evt, elements) {
+                    const els = this.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+                    if (!els.length) return;
+                    const el = els[0];
+                    const d = daily[el.index];
+                    if (!d || !d.date) return;
+                    const dateParam = encodeURIComponent(d.date);
+                    const result = el.datasetIndex === 0 ? 'pass' : 'fail';
+                    window.location.href = '{% url "suites:run_list" %}?result=' + result + '&date=' + dateParam;
+                },
+                onHover: function (evt, els) {
+                    evt.native.target.style.cursor = els.length ? 'pointer' : 'default';
+                },
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true, pointStyle: 'circle', font: { size: 11 } } },
+                    tooltip: {
+                        backgroundColor: 'rgba(15,23,42,0.92)', padding: 10, cornerRadius: 8,
+                        callbacks: {
+                            footer: function (items) {
+                                const total = items.reduce((s, i) => s + i.raw, 0);
+                                return '합계: ' + total;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { stacked: true, grid: { display: false }, ticks: { font: { size: 11 } } },
+                    y: { stacked: true, beginAtZero: true, grid: { color: GRID }, border: { display: false }, ticks: { stepSize: 1, font: { size: 11 } } },
+                },
+            },
+        });
+    })();
+
+    /* ── b) Suite별 horizontal bar (14일) — pass rate 구간별 색상 (녹/노/빨) ── */
+    (function buildSuiteHBar() {
+        const ctx = document.getElementById('chart-suite-hbar');
+        if (!ctx) return;
+        if (!suiteStats.length) {
+            ctx.parentElement.innerHTML = '<p class="text-muted" style="text-align:center;padding:32px 0;font-size:0.82rem">데이터가 없습니다.</p>';
+            return;
+        }
+        // pass_rate 구간을 한눈에 — 반투명 그라데이션이 색을 흐리게 만들어
+        // 구분이 안 됐던 문제(평범) 해소: 선명한 단색으로 복원.
+        const colors = suiteStats.map(s => {
+            if (s.pass_rate >= 90) return '#22c55e';  // 녹색 (≥90%)
+            if (s.pass_rate >= 50) return '#f59e0b';  // 노랑 (50~89%)
+            return '#ef4444';                          // 빨강 (<50%)
+        });
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: suiteStats.map(s => s.name),
+                datasets: [{
+                    label: 'Pass Rate (%)',
+                    data: suiteStats.map(s => s.pass_rate),
+                    backgroundColor: colors,
+                    borderRadius: 5,
+                }],
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                onClick: function (evt) {
+                    const els = this.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+                    if (!els.length) return;
+                    const s = suiteStats[els[0].index];
+                    if (!s || !s.suite_id) return;
+                    window.location.href = '{% url "suites:run_list" %}?suite=' + encodeURIComponent(s.suite_id);
+                },
+                onHover: function (evt, els) {
+                    evt.native.target.style.cursor = els.length ? 'pointer' : 'default';
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(15,23,42,0.92)', padding: 10, cornerRadius: 8,
+                        callbacks: {
+                            label: function (item) {
+                                const s = suiteStats[item.dataIndex];
+                                const lines = [
+                                    ' Pass Rate: ' + s.pass_rate + '%',
+                                    ' Pass: ' + s.pass + '  Fail: ' + s.fail + '  Total: ' + s.total,
+                                ];
+                                const dur = fmtDur(s.avg_duration_sec);
+                                if (dur) lines.push(' 평균 소요: ' + dur);
+                                return lines;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        min: 0, max: 100,
+                        grid: { color: GRID }, border: { display: false },
+                        ticks: { callback: v => v + '%', font: { size: 11 } }
+                    },
+                    y: { grid: { display: false }, ticks: { font: { size: 11 } } },
+                },
+            },
+        });
+    })();
+
+    /* ── 공통 doughnut 빌더 ── */
+    /* sliceLinks: 길이 2 배열 — 각 슬라이스 클릭 시 이동할 URL. 생략 시 드릴다운 없음. */
+    function buildDoughnut(canvasId, totalElId, labels, colors, values, sliceLinks) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+        const total = values.reduce(function (s, v) { return s + (v || 0); }, 0);
+
+        // 가운데 = Pass Rate (values[0] = 패스). 두 도넛 모두 패스 비율을 headline 로 노출.
+        // 소수점 3자리 고정 표기 — 99.9% 대에서의 미세한 변화도 보이게.
+        const passRate = total ? (values[0] / total * 100).toFixed(3) : '0.000';
+        const centerEl = document.getElementById(totalElId);
+        if (centerEl) centerEl.textContent = passRate + '%';
+
+        if (!total) {
+            /* 가운데 라벨 숨기고 안내 텍스트만 */
+            const wrap = ctx.parentElement;
+            wrap.innerHTML = '<p class="text-muted" style="text-align:center;padding:32px 0;font-size:0.82rem">데이터가 없습니다.</p>';
+            return;
+        }
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: colors,
+                    borderWidth: 3,
+                    borderColor: 'rgba(255,255,255,0.85)',
+                    hoverOffset: 8,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '66%',
+                onClick: function (evt) {
+                    if (!sliceLinks) return;
+                    const els = this.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+                    if (!els.length) return;
+                    const url = sliceLinks[els[0].index];
+                    if (url) window.location.href = url;
+                },
+                onHover: function (evt, els) {
+                    if (!sliceLinks) return;
+                    evt.native.target.style.cursor = els.length ? 'pointer' : 'default';
+                },
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true, pointStyle: 'circle', font: { size: 11 } } },
+                    tooltip: {
+                        backgroundColor: 'rgba(15,23,42,0.92)', padding: 10, cornerRadius: 8,
+                        callbacks: {
+                            label: function (item) {
+                                const pct = total ? (item.raw / total * 100).toFixed(3) : '0.000';
+                                return ' ' + item.label + ': ' + item.raw + ' (' + pct + '%)';
+                            }
+                        }
+                    }
+                },
+            },
+        });
+    }
+
+    /* ── d) 서비스 품질 지표 doughnut (패스 / 장애) ── */
+    buildDoughnut(
+        'chart-dist-quality-canvas',
+        'doughnut-quality-total',
+        ['Pass', 'Failure'],
+        ['#10b981', '#f43f5e'],
+        [distQuality.pass || 0, distQuality.fail || 0],
+        ['{% url "suites:job_run_list" %}?result=success', '{% url "suites:job_run_list" %}?result=failure']
+    );
+
+    /* ── e) 퀄리티게이트 품질 지표 doughnut (패스 / Skip) ── */
+    buildDoughnut(
+        'chart-dist-skip-canvas',
+        'doughnut-skip-total',
+        ['Pass', 'Skip'],
+        ['#10b981', '#f59e0b'],
+        [distSkip.pass || 0, distSkip.skip || 0],
+        ['{% url "suites:job_run_list" %}?result=success', '{% url "suites:job_run_list" %}?result=skip']
+    );
+})();
+</script>
 {% endblock %}

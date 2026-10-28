@@ -47,6 +47,7 @@ Slack 자동 멘션이나 담당자(`ApiEndpointOwner` / `FallbackOwners`) 관�
 - 자동 발송: `apps/notifications/services.py:_build_followup_for_job_run` (Test Suite FAIL Slack 메시지)
 - 수동 발송 (담당자 매칭됨): `apps/integrations/views.py:api_owner_notify_error` (Error Log 페이지 "에러 노티" 버튼)
 - 수동 발송 (대체 담당자): `apps/integrations/views.py:notify_fallback_owners` (Error Log 페이지 매칭 실패 행)
+- 자동 발송 (UI Test Automation FAIL): `apps/notifications/services.py:send_tap_run_event` → `_ui_owner_mentions` (`UiAutomationOwners` — 담당자 관리 > UI 탭, URL 매칭 없이 통 멘션)
 - Error Log 페이지 담당자 표 노출: `apps/integrations/url_matcher.py:extract_urls` + 그것을 호출하는 view 들
 
 → 매칭 룰 변경은 `slack_users.py` 한 곳에 집중. 알림 형식 / fallback 분기 같은 발송 로직은 자동/수동 양쪽에 동일하게 반영해야 한다.

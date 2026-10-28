@@ -74,3 +74,31 @@ class SignupForm(forms.ModelForm):
         if commit:
             user.save()
         return user
+
+
+class AdminUserCreateForm(SignupForm):
+    """관리자가 사용자 관리 화면에서 직접 계정을 추가하는 폼.
+
+    SignupForm 의 검증(중복 ID/이메일, 비밀번호 8자+특수문자, 확인 일치)을
+    그대로 상속하고, 차이는 두 가지 — ① 역할(role)을 관리자가 지정 ②
+    승인 대기 없이 **즉시 활성(is_active=True)** 로 생성.
+    """
+
+    role = forms.ChoiceField(
+        label="역할",
+        choices=User.Role.choices,
+        initial=User.Role.VIEWER,
+        widget=forms.Select(attrs={"class": "form-input"}),
+    )
+
+    # 역할을 비밀번호 입력란보다 앞에 — 상속 병합 순서상 role 이 맨 뒤로
+    # 렌더되는 것을 교정 (검증/저장 로직과 무관, 표시 순서만).
+    field_order = ["username", "first_name", "email", "role", "password1", "password2"]
+
+    def save(self, commit=True):
+        user = super().save(commit=False)  # 비밀번호 해시는 부모가 처리
+        user.role = self.cleaned_data["role"]
+        user.is_active = True  # 관리자가 직접 추가 → 승인 절차 생략
+        if commit:
+            user.save()
+        return user

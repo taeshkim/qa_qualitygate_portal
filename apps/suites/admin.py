@@ -1,10 +1,19 @@
 from django.contrib import admin
-from .models import TestSuite, TestSuiteJob, TestSuiteRun, TestSuiteJobRun
+from .models import (
+    TestSuite,
+    TestSuiteJob,
+    TestSuiteJobRun,
+    TestSuiteRun,
+)
 
 
 class TestSuiteJobInline(admin.TabularInline):
     model = TestSuiteJob
     extra = 0
+    fields = [
+        "job_name", "job_full_path", "total_stages",
+        "trigger_delay_seconds", "is_target", "is_active", "order",
+    ]
 
 
 @admin.register(TestSuite)

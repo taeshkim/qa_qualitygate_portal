@@ -3,6 +3,11 @@ Django>=4.2,<5.0
 djangorestframework>=3.14,<4.0
 django-filter>=23.0
 
+# /api/v2/ OpenAPI(Swagger) 문서 — sidecar 는 Swagger UI/ReDoc 정적 에셋을
+# 로컬 서빙(인트라넷 환경, 외부 CDN 미의존). 문서 전용 — API 동작 불변.
+drf-spectacular>=0.27
+drf-spectacular-sidecar
+
 # Environment
 python-dotenv>=1.0
 
@@ -14,7 +19,14 @@ django-cors-headers>=4.0
 google-auth>=2.23
 requests>=2.28
 
+# Slack — 발신(chat.postMessage/update) + 실패 알림 Triage 버튼 수신(Socket Mode).
+# 인트라넷이라 인바운드 공개 URL 대신 Socket Mode(아웃바운드 WS)로 버튼 클릭 수신.
+slack_sdk>=3.27
+
 # Async Task Queue (production)
 celery>=5.3
 redis>=5.0
 django-celery-beat>=2.5
+
+# Keycloak(OIDC) SSO 로그인 (apps/accounts/sso.py)
+authlib>=1.8,<2

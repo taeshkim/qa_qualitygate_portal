@@ -21,10 +21,16 @@
             <strong>Status:</strong>
             {% if job_run.status == "success" %}
             <span class="status-badge status-pass">SUCCESS</span>
-            {% elif job_run.status == "failure" %}
-            <span class="status-badge status-fail">FAILURE</span>
-            {% elif job_run.status == "aborted" %}
-            <span class="status-badge status-na">ABORTED</span>
+            {% elif job_run.status == "failure" or job_run.status == "aborted" %}
+                {% if job_run.verdict == "skip" %}
+                <span class="status-badge status-na" title="Slack Triage — 자동화 판정 오류 의심 및 자동화 코드 이슈 추정으로 Skip 분류{% if job_run.triaged_by %} · {{ job_run.triaged_by }}{% endif %}">⏭️ SKIP</span>
+                {% elif job_run.verdict == "failure" %}
+                <span class="status-badge status-fail" title="Slack Triage — 실제 장애로 분류{% if job_run.triaged_by %} · {{ job_run.triaged_by }}{% endif %}">🔴 FAILURE</span>
+                {% elif job_run.status == "aborted" %}
+                <span class="status-badge status-na">ABORTED</span>
+                {% else %}
+                <span class="status-badge status-fail" title="미분류 — Slack Failure/Skip 버튼으로 분류 대기">FAIL</span>
+                {% endif %}
             {% else %}
             <span class="status-badge status-running">{{ job_run.status|upper }}</span>
             {% endif %}
@@ -36,7 +42,7 @@
             <strong>Duration:</strong>
             {{ job_run.duration_seconds|default:"-" }}{% if job_run.duration_seconds %}s{% endif %}
         </div>
-        <div style="margin-left:auto;display:flex;gap:6px">
+        <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
             <a href="{% url 'suites:job_run_console' job_run.pk %}" class="btn btn-sm btn-secondary">
                 <i class="fas fa-terminal"></i> Full Console
             </a>
@@ -62,6 +68,8 @@
                     <th>Method</th>
                     <th>호출 횟수</th>
                     <th>Status</th>
+                    <th>카테고리</th>
+                    <th>영역</th>
                     <th>FE 담당자</th>
                     <th>BE 담당자</th>
                     <th></th>
@@ -75,6 +83,8 @@
                     <td>{{ m.count }}</td>
                     <td>{% if m.status_code %}<span class="status-badge {% if m.status_code >= 500 %}status-fail{% elif m.status_code >= 400 %}status-na{% else %}status-pass{% endif %}">{{ m.status_code }}</span>{% else %}-{% endif %}</td>
                     {% if m.owner %}
+                    <td>{{ m.owner.category|default:"-" }}</td>
+                    <td>{{ m.owner.area|default:"-" }}</td>
                     <td{% if m.status_code and m.status_code >= 400 and m.status_code < 500 %} style="background:rgba(255,193,7,0.18);font-weight:600" title="이 Status({{ m.status_code }})는 FE 담당자가 F/U"{% endif %}>
                         {{ m.owner.fe_owner|default:"-" }}
                     </td>
@@ -99,6 +109,8 @@
                         {% endif %}
                     </td>
                     {% else %}
+                    <td class="text-muted">-</td>
+                    <td class="text-muted">-</td>
                     <td colspan="2">
                         <span class="text-muted">담당자 미등록 — 대체 담당자로 지정</span>
                     </td>
@@ -120,7 +132,8 @@
                         </form>
                         {% endif %}
                         {% if user.is_admin %}
-                        <a href="{% url 'accounts:api_owner_create' %}?method={{ m.method|default:'GET'|urlencode }}&endpoint={{ m.url|url_path|urlencode }}&host={{ m.url|url_host|urlencode }}" class="btn btn-sm btn-secondary" title="이 URL 의 담당자를 등록">+ 등록</a>
+                        <button type="button" class="btn btn-sm btn-secondary" title="이 URL 의 담당자를 등록"
+                                onclick="openOwnerModal({method:'{{ m.method|default:'GET'|escapejs }}', endpoint:'{{ m.url|url_path|escapejs }}', host:'{{ m.url|url_host|escapejs }}'})">+ 등록</button>
                         {% endif %}
                         </div>
                     </td>
@@ -155,4 +168,6 @@
     </p>
     {% endif %}
 </div>
+
+{% if owner_form %}{% include "accounts/_api_owner_modal.html" %}{% endif %}
 {% endblock %}

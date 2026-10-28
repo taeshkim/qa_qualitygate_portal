@@ -8,7 +8,7 @@
         {{ run.gate.name }}
         <span class="text-muted" style="font-weight:500;font-size:0.85em">#{{ run.seq_no }}</span>
     </h1>
-    <div style="display:flex;gap:8px;align-items:center">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <a href="{% url 'qualitygates:gate_detail' run.gate.pk %}" class="btn btn-secondary">
             <i class="fas fa-arrow-left"></i> Back
         </a>
@@ -69,7 +69,7 @@
     z-index: 1000; display: flex; align-items: center; justify-content: center;
 }
 .qg-modal {
-    background: #fff; border-radius: 8px; padding: 24px;
+    background: var(--surface); border-radius: 8px; padding: 24px;
     width: 90%; max-width: 520px; max-height: 90vh; overflow-y: auto;
 }
 .qg-param-row { margin-bottom: 12px; }
@@ -84,15 +84,21 @@ function _renderParam(p) {
     const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const type = (p.type || '').toLowerCase();
     const isGit = type.includes('git');
-    const hasChoices = Array.isArray(p.choices) && p.choices.length > 0;
+    const isAppImage = (name === 'APP_IMAGE');
+    // 빈 문자열·null·undefined 값의 choice 는 렌더링에서 제외 (빈 옵션 차단)
+    const rawChoices = Array.isArray(p.choices) ? p.choices : [];
+    const validChoices = rawChoices.filter(c => c !== '' && c != null);
+    const hasChoices = validChoices.length > 0;
     let input;
     if (type.includes('boolean')) {
         const checked = defval === 'true' || defval === 'True' ? 'checked' : '';
         input = `<input type="hidden" name="param_${esc(name)}" value="false">` +
                 `<input type="checkbox" name="param_${esc(name)}" value="true" ${checked}>`;
     } else if (hasChoices) {
-        input = `<select name="param_${esc(name)}" class="form-input">` +
-                p.choices.map(c => `<option value="${esc(c)}" ${c===defval?'selected':''}>${esc(c)}</option>`).join('') +
+        // APP_IMAGE select: required 속성 추가, 빈 value 옵션 없음
+        const extraAttrs = isAppImage ? ' required data-app-image-select="1"' : '';
+        input = `<select name="param_${esc(name)}" class="form-input"${extraAttrs}>` +
+                validChoices.map(c => `<option value="${esc(c)}" ${c===defval?'selected':''}>${esc(c)}</option>`).join('') +
                 `</select>`;
     } else if (type.includes('text')) {
         input = `<textarea name="param_${esc(name)}" class="form-input" rows="3">${esc(defval)}</textarea>`;
@@ -100,9 +106,16 @@ function _renderParam(p) {
         input = `<input type="text" name="param_${esc(name)}" class="form-input" value="${esc(defval)}">`;
     }
     const warn = (isGit && !hasChoices)
-        ? `<div style="margin-top:4px;padding:6px 8px;background:#fff8e1;border-left:3px solid #f59e0b;font-size:0.8rem;color:#92400e"><i class="fas fa-exclamation-triangle"></i> Git Parameter 입니다. 기본값(<code>${esc(defval)}</code>)이 실제 저장소에 없는 브랜치/태그일 수 있으니 실존하는 이름으로 직접 입력하세요.</div>`
+        ? `<div style="margin-top:4px;padding:6px 8px;background:var(--warn-bg);border-left:3px solid #f59e0b;font-size:0.8rem;color:var(--warn-text)"><i class="fas fa-exclamation-triangle"></i> Git Parameter 입니다. 기본값(<code>${esc(defval)}</code>)이 실제 저장소에 없는 브랜치/태그일 수 있으니 실존하는 이름으로 직접 입력하세요.</div>`
         : '';
     return `<div class="qg-param-row"><label>${esc(name)} <small>(${esc(p.type||'')})</small></label>${input}${warn}</div>`;
+}
+
+function _isValidAppImage(val) {
+    // 빈 문자열이거나 ':' 로 끝나면 유효하지 않음
+    if (!val || val.trim() === '') return false;
+    if (val.trim().endsWith(':')) return false;
+    return true;
 }
 
 function openParamsModal(opts) {
@@ -129,6 +142,25 @@ function openParamsModal(opts) {
     closeWrap.style.display = 'none';
     paramsEl.innerHTML = '';
 
+    // 이전에 등록된 submit 가드 제거 후 새로 등록 (모달 재사용 시 중복 방지)
+    if (form._submitGuard) {
+        form.removeEventListener('submit', form._submitGuard);
+        form._submitGuard = null;
+    }
+    function _submitGuard(e) {
+        const appImageSel = form.querySelector('select[data-app-image-select="1"]');
+        if (appImageSel) {
+            const val = appImageSel.value;
+            if (!_isValidAppImage(val)) {
+                e.preventDefault();
+                alert('APP_IMAGE 값이 올바르지 않습니다. 유효한 이미지 태그를 선택하세요.');
+                return false;
+            }
+        }
+    }
+    form._submitGuard = _submitGuard;
+    form.addEventListener('submit', _submitGuard);
+
     fetch(opts.paramsUrl, {credentials: 'same-origin'})
         .then(r => r.json().then(d => ({ok: r.ok, data: d})))
         .then(({ok, data}) => {
@@ -141,6 +173,10 @@ function openParamsModal(opts) {
             }
             body.style.display = 'none';
             const params = data.parameters || [];
+            // app_image_matched: 백엔드가 이 Run 의 이미지 prefix 로 매칭에 성공했는지 여부
+            // undefined(구 버전 응답) 는 true 로 취급
+            const appImageMatched = data.app_image_matched !== false;
+
             if (params.length === 0) {
                 paramsEl.innerHTML = `<p>${opts.confirmText || '실행하시겠습니까?'}</p>`;
             } else {
@@ -148,6 +184,33 @@ function openParamsModal(opts) {
                     params.map(p => _renderParam(p)).join('');
             }
             form.style.display = 'block';
+
+            // app_image_matched === false 인 경우: 경고 배너 표시 + Submit 비활성화
+            if (!appImageMatched) {
+                submitBtn.disabled = true;
+                const warnDiv = document.createElement('div');
+                warnDiv.id = 'app-image-warn';
+                warnDiv.className = 'alert alert-warning';
+                warnDiv.style.cssText = 'margin-bottom:12px;border-left:4px solid #f59e0b;font-size:0.85rem';
+                warnDiv.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ' +
+                    '이 Run 의 이미지 빌드 태그를 자동으로 확인할 수 없습니다. ' +
+                    '빌드 실패·콘솔 미저장·결과 모호 중 하나일 수 있습니다. ' +
+                    '<b>Run 을 재실행해 이미지 빌드부터 다시 진행</b>하세요. ' +
+                    '(아래 목록에 유효한 태그가 보인다면 직접 선택해도 됩니다.)';
+                paramsEl.insertAdjacentElement('beforebegin', warnDiv);
+
+                // APP_IMAGE select 에서 빈값이 아닌 값을 명시 선택하면 Submit 다시 활성화
+                const appImageSel = form.querySelector('select[data-app-image-select="1"]');
+                if (appImageSel) {
+                    // 현재 선택값이 유효하면 바로 활성화
+                    if (_isValidAppImage(appImageSel.value)) {
+                        submitBtn.disabled = false;
+                    }
+                    appImageSel.addEventListener('change', function() {
+                        submitBtn.disabled = !_isValidAppImage(this.value);
+                    });
+                }
+            }
         })
         .catch(err => {
             errEl.textContent = '요청 실패: ' + err;
@@ -170,10 +233,10 @@ function openDeployModal(paramsUrl, submitUrl, csrfToken) {
 function openProdModal(paramsUrl, submitUrl, csrfToken) {
     openParamsModal({
         paramsUrl, submitUrl, csrfToken,
-        title: '검수통과 환경 배포',
-        submitLabel: '실행',
+        title: '검수통과 환경 배포 승인',
+        submitLabel: '승인 후 실행',
         submitIcon: 'fa-rocket',
-        confirmText: '검수통과 환경 배포를 실행합니다. 계속할까요?',
+        confirmText: '검수통과 환경 배포를 승인하고 실행합니다. 계속할까요?',
     });
 }
 
@@ -189,6 +252,11 @@ function openRerunModal(paramsUrl, submitUrl, csrfToken) {
 
 function closeParamsModal() {
     document.getElementById('params-modal').style.display = 'none';
+    // 모달 닫을 때 상태 초기화 (재사용 시 이전 경고·disabled 잔류 방지)
+    const submitBtn = document.getElementById('params-modal-submit');
+    if (submitBtn) submitBtn.disabled = false;
+    const warnDiv = document.getElementById('app-image-warn');
+    if (warnDiv) warnDiv.remove();
 }
 
 /* Run Detail — 이 Run 을 글로벌 watcher 에 등록 (페이지 이동해도 계속 추적).

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}{{ tap_suite.name }} 편집 - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>UI Test Suite 편집</h1>
+    <a href="{% url 'suites:suite_list' %}?tab=ui" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> 목록</a>
+</div>
+
+<div class="card" style="max-width:560px">
+    <h2 class="card-title"><i class="fas fa-edit"></i> {{ tap_suite.name }}</h2>
+    <p class="text-muted" style="font-size:0.85rem;margin-top:-6px;margin-bottom:14px">
+        프로젝트 <strong>{{ tap_suite.project_name|default:"-" }}</strong> ·
+        케이스 <strong>{{ tap_suite.case_count }}</strong>개 ·
+        담당 {{ tap_suite.owner_display|default:"-" }}<br>
+        이름/케이스 구성은 TAP 이 원본이라 여기서 수정할 수 없습니다 (매분 자동 싱크).
+        아래 설정은 포털 전용 값으로 싱크의 영향을 받지 않습니다.
+    </p>
+
+    <form method="post" style="display:flex;flex-direction:column;gap:12px">
+        {% csrf_token %}
+        <div>
+            <label for="id_retry_count" style="display:block;font-weight:600;font-size:0.88rem;margin-bottom:4px">
+                재시도 횟수 <span style="color:var(--danger)">*</span>
+            </label>
+            <input type="number" id="id_retry_count" name="retry_count" class="form-input"
+                   min="1" max="10" value="{{ tap_suite.retry_count }}" style="max-width:120px">
+            <div class="text-muted" style="font-size:0.78rem;margin-top:4px">
+                최대 실행 횟수입니다. 1=재시도 없음, 3=완료 결과에 실패 케이스가 있으면 전체를 최대 3번까지 자동 재실행.
+                중간 시도의 실패는 Slack 으로 알리지 않고, 마지막 시도의 결과만 알림·통계에 반영됩니다.
+                (실행 오류/타임아웃(error)·취소(Aborted)는 재시도하지 않습니다 — API Suite 와 동일 정책)
+            </div>
+        </div>
+        <div style="display:flex;gap:6px">
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 저장</button>
+            <a href="{% url 'suites:suite_list' %}?tab=ui" class="btn btn-secondary">취소</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

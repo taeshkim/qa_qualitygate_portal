@@ -10,7 +10,7 @@
 {% include "accounts/_admin_tabs.html" %}
 
 <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
         <h2 class="card-title" style="margin-bottom:0">전체 API 키 ({{ keys|length }}개)</h2>
         <a href="{% url 'accounts:api_key_create' %}" class="btn btn-primary btn-sm">
             <i class="fas fa-plus"></i> 새 키 발급

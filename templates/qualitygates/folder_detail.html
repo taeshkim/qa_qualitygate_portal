@@ -5,7 +5,7 @@
 {% block content %}
 <div class="page-header">
     <h1><i class="fas fa-folder" style="color:#f59e0b"></i> {{ folder.name }}</h1>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
         {% if user.is_admin %}
         <a href="{% url 'qualitygates:subfolder_register' folder.pk %}" class="btn btn-primary">
             <i class="fas fa-folder-plus"></i> 하위폴더 등록
@@ -63,7 +63,7 @@
 }
 .subfolder-card {
     display: block;
-    background: #fff;
+    background: var(--surface);
     border: 1px solid var(--gray-200);
     border-radius: 10px;
     padding: 20px;

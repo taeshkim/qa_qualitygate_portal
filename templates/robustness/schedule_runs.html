@@ -1,10 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}{{ schedule.test_suite.name }} - 실행 이력{% endblock %}
+{% block title %}{{ schedule.target_name }} - 실행 이력{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>{{ schedule.robustness_test.name }} / {{ schedule.test_suite.name }}</h1>
+    <h1>
+        {{ schedule.robustness_test.name }} / {{ schedule.target_name }}
+        {% if schedule.is_tap %}
+        <span class="status-badge status-running" style="font-size:0.68rem;vertical-align:middle" title="UI Automation (TAP)">UI</span>
+        {% endif %}
+    </h1>
     <a href="{% url 'robustness:test_detail' schedule.robustness_test_id %}" class="btn btn-secondary">
         <i class="fas fa-arrow-left"></i> Back
     </a>
@@ -22,7 +27,7 @@
             <span class="detail-value">{{ schedule.interval_minutes }}분</span>
         </div>
         <div class="detail-item">
-            <span class="detail-label">총 잡 실행 수</span>
+            <span class="detail-label">{% if schedule.is_tap %}총 케이스 실행 수{% else %}총 잡 실행 수{% endif %}</span>
             <span class="detail-value">
                 {{ schedule.total_executions }}
                 <span class="text-muted" style="font-size:0.8rem">(트리거 {{ schedule.trigger_count }}회)</span>
@@ -45,6 +50,61 @@
     </div>
 </div>
 
+{% if schedule.is_tap %}
+<div class="card">
+    <h2 class="card-title">실행 이력 (최근 100건)</h2>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>세션</th>
+                    <th>Status</th>
+                    <th>케이스 진행</th>
+                    <th>Pass/Fail</th>
+                    <th>시작</th>
+                    <th>종료</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in tap_runs %}
+                <tr>
+                    <td>#{{ run.session_id }}</td>
+                    <td>
+                        {% if run.status == "running" %}
+                        <span class="status-badge status-running">{{ run.result_label }}</span>
+                        {% elif run.status == "queued" or run.status == "pending" %}
+                        <span class="status-badge status-na">{{ run.result_label }}</span>
+                        {% elif run.status == "stopped" %}
+                        <span class="status-badge status-na" title="중단(Aborted) — 장애로 집계하지 않음">{{ run.result_label }}</span>
+                        {% elif run.status == "error" or run.failed > 0 %}
+                        <span class="status-badge status-fail">{{ run.result_label }}</span>
+                        {% else %}
+                        <span class="status-badge status-pass">{{ run.result_label }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ run.completed_cases }}/{{ run.total_cases }} ({{ run.progress_percent }}%)</td>
+                    <td>
+                        <span class="text-success">{{ run.passed }}</span>
+                        /
+                        <span class="text-danger">{{ run.failed }}</span>
+                    </td>
+                    <td>{{ run.started_at|date:"m/d H:i:s" }}</td>
+                    <td>{{ run.finished_at|date:"m/d H:i:s"|default:"-" }}</td>
+                    <td>
+                        <a href="{% url 'suites:tap_run_detail' run.pk %}" class="btn btn-sm btn-secondary">상세</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted">실행 이력이 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
 <div class="card">
     <h2 class="card-title">실행 이력 (최근 100건)</h2>
     <div class="table-wrapper">
@@ -103,4 +163,5 @@
         </table>
     </div>
 </div>
+{% endif %}
 {% endblock %}

@@ -77,9 +77,12 @@ class _SuiteRunTestBase(TestCase):
         self._orig_try = sv._try_trigger_next
         self._orig_abort = sv._abort_suite_run
         self._orig_poll = sv._poll_run_status
+        self._orig_pick = sv.pick_idle_job
         sv._try_trigger_next = _noop
         sv._abort_suite_run = self._fake_abort
         sv._poll_run_status = _noop
+        # idle 선택은 Jenkins 를 부르므로 테스트에선 첫 활성 대상 Job 으로 고정.
+        sv.pick_idle_job = self._fake_pick_idle
 
         self.client = Client()
 
@@ -88,6 +91,12 @@ class _SuiteRunTestBase(TestCase):
         sv._try_trigger_next = self._orig_try
         sv._abort_suite_run = self._orig_abort
         sv._poll_run_status = self._orig_poll
+        sv.pick_idle_job = self._orig_pick
+
+    @staticmethod
+    def _fake_pick_idle(suite, jobs):
+        """pick_idle_job 의 테스트용 대체 — 첫 번째(idle 가정) Job 반환."""
+        return jobs[0] if jobs else None
 
     @staticmethod
     def _fake_abort(suite_run: TestSuiteRun) -> bool:
@@ -136,15 +145,137 @@ class SuiteRunTriggerTests(_SuiteRunTestBase):
         # 실제 SuiteRun 이 생성됐는지 검증.
         self.assertTrue(TestSuiteRun.objects.filter(pk=body["suite_run_id"]).exists())
 
-    def test_trigger_without_job_id_returns_400_job_required(self):
+    def test_trigger_without_job_id_runs_single_idle_worker(self):
+        """job_id 생략(기본) → idle worker **1개만** 실행 (total_jobs=1)."""
+        # 같은 suite 에 두 번째 활성 대상 Job 을 추가해도 1개만 돌아야 한다.
+        TestSuiteJob.objects.create(
+            suite=self.suite,
+            job_name="job-b",
+            job_full_path="folder/path/job-b",
+            order=1,
+        )
         resp = self.client.post(
             self._url_runs(),
             data={},
             content_type="application/json",
             **_auth(self.trigger_plaintext),
         )
-        self.assertEqual(resp.status_code, 400)
-        self.assertEqual(resp.json()["error"]["code"], "job_required")
+        self.assertEqual(resp.status_code, 201, resp.content)
+        body = resp.json()
+        self.assertEqual(body["status"], "running")
+        self.assertEqual(body["total_jobs"], 1)
+        run = TestSuiteRun.objects.get(pk=body["suite_run_id"])
+        self.assertEqual(run.total_jobs, 1)
+        self.assertEqual(run.job_runs.count(), 1)
+        # _fake_pick_idle 가 첫 번째 활성 대상 Job(self.job) 을 고른다.
+        self.assertEqual(run.job_runs.first().job_id, self.job.pk)
+
+    def test_trigger_single_idle_picks_returned_job(self):
+        """pick_idle_job 이 고른 worker 로 job_run 이 만들어진다."""
+        job_b = TestSuiteJob.objects.create(
+            suite=self.suite, job_name="job-b", job_full_path="folder/path/job-b",
+            order=1,
+        )
+        import apps.suites.views as sv
+        sv.pick_idle_job = lambda suite, jobs: job_b
+        try:
+            resp = self.client.post(
+                self._url_runs(), data={}, content_type="application/json",
+                **_auth(self.trigger_plaintext),
+            )
+        finally:
+            sv.pick_idle_job = self._fake_pick_idle
+        self.assertEqual(resp.status_code, 201, resp.content)
+        run = TestSuiteRun.objects.get(pk=resp.json()["suite_run_id"])
+        self.assertEqual(run.total_jobs, 1)
+        self.assertEqual(run.job_runs.first().job_id, job_b.pk)
+
+    def test_trigger_all_workers_busy_returns_409(self):
+        """모든 worker 가 busy(pick_idle_job→None) → 409 all_workers_busy."""
+        import apps.suites.views as sv
+        sv.pick_idle_job = lambda suite, jobs: None
+        try:
+            resp = self.client.post(
+                self._url_runs(), data={}, content_type="application/json",
+                **_auth(self.trigger_plaintext),
+            )
+        finally:
+            sv.pick_idle_job = self._fake_pick_idle
+        self.assertEqual(resp.status_code, 409, resp.content)
+        self.assertEqual(resp.json()["error"]["code"], "all_workers_busy")
+
+    def test_trigger_run_all_runs_full_chain(self):
+        """run_all=true → 활성 대상 Job 전체 순차 체인 (total_jobs=N)."""
+        TestSuiteJob.objects.create(
+            suite=self.suite, job_name="job-b", job_full_path="folder/path/job-b",
+            order=1,
+        )
+        resp = self.client.post(
+            self._url_runs(),
+            data={"run_all": True},
+            content_type="application/json",
+            **_auth(self.trigger_plaintext),
+        )
+        self.assertEqual(resp.status_code, 201, resp.content)
+        body = resp.json()
+        self.assertEqual(body["total_jobs"], 2)
+        run = TestSuiteRun.objects.get(pk=body["suite_run_id"])
+        self.assertEqual(run.total_jobs, 2)
+        self.assertEqual(run.job_runs.count(), 2)
+
+    def test_trigger_run_all_skips_inactive_and_non_target_jobs(self):
+        TestSuiteJob.objects.create(
+            suite=self.suite, job_name="inactive", job_full_path="folder/path/inactive",
+            order=1, is_active=False,
+        )
+        TestSuiteJob.objects.create(
+            suite=self.suite, job_name="non-target", job_full_path="folder/path/non-target",
+            order=2, is_target=False,
+        )
+        resp = self.client.post(
+            self._url_runs(),
+            data={"run_all": True},
+            content_type="application/json",
+            **_auth(self.trigger_plaintext),
+        )
+        self.assertEqual(resp.status_code, 201, resp.content)
+        run = TestSuiteRun.objects.get(pk=resp.json()["suite_run_id"])
+        # self.job (활성 대상) 만 포함.
+        self.assertEqual(run.total_jobs, 1)
+
+    def test_trigger_run_all_blocked_when_run_already_active(self):
+        # 먼저 체인 Run 을 띄워 RUNNING 상태로 만든다.
+        first = self.client.post(
+            self._url_runs(), data={"run_all": True}, content_type="application/json",
+            **_auth(self.trigger_plaintext),
+        )
+        self.assertEqual(first.status_code, 201, first.content)
+        # 진행 중인데 다시 체인 트리거 → 409 run_already_active.
+        resp = self.client.post(
+            self._url_runs(), data={"run_all": True}, content_type="application/json",
+            **_auth(self.trigger_plaintext),
+        )
+        self.assertEqual(resp.status_code, 409, resp.content)
+        self.assertEqual(resp.json()["error"]["code"], "run_already_active")
+
+    def test_trigger_no_active_jobs_returns_409(self):
+        self.suite.jobs.update(is_active=False)
+        resp = self.client.post(
+            self._url_runs(), data={}, content_type="application/json",
+            **_auth(self.trigger_plaintext),
+        )
+        self.assertEqual(resp.status_code, 409, resp.content)
+        self.assertEqual(resp.json()["error"]["code"], "no_active_jobs")
+
+    def test_trigger_only_non_target_jobs_returns_409(self):
+        # is_active=True 라도 is_target=False 뿐이면 실행 대상이 없다.
+        self.suite.jobs.update(is_target=False)
+        resp = self.client.post(
+            self._url_runs(), data={}, content_type="application/json",
+            **_auth(self.trigger_plaintext),
+        )
+        self.assertEqual(resp.status_code, 409, resp.content)
+        self.assertEqual(resp.json()["error"]["code"], "no_active_jobs")
 
     def test_trigger_with_other_suite_job_returns_400_invalid_parameters(self):
         resp = self.client.post(

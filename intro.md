@@ -1,7 +1,7 @@
 # QA Quality Gate Portal — 시스템 소개 (intro.md)
 
 > Jenkins · Argo CD · Test Suite 를 하나의 검수 파이프라인으로 묶어 운영하는 Django 기반 품질 게이트 포털.
-> 운영 도메인: <https://qualitygate.jkintra.net>
+> 접속 주소: <https://qw.jkintra.net/qg/> (게이트웨이, IDC `wx-qms221`) · 프로그램 호출(API Key) 전용 `https://qw.jkintra.net/qg/ci-api/`. 이전 운영 도메인 `qualitygate.jkintra.net`(AWS 원본)은 2026-10 서버 이관으로 종료.
 >
 > 이 문서는 시스템 전체를 처음 보는 사람을 위한 **소개 + 구조도** 다. 코드 변경 가이드는 `maintenance.md`, 운영/기능 상세는 `README.md`, 기획 의도는 `PRD.md` 를 참고.
 
@@ -25,7 +25,7 @@
 
 ## 1. 개요
 
-**QA Quality Gate Portal** 은 Jenkins · Argo CD · Test Suite 를 하나의 품질 관문(Quality Gate) 실행으로 엮어, QA 검수 파이프라인을 한 화면에서 트리거 · 조회 · 제어하는 사내 Django 포털이다. 그동안 Slack · Jenkins · Notion 에 흩어져 있던 QG 운영 정보를 단일 포털로 통합하는 것을 목표로 하며, QPE(품질 엔지니어링) 조직과 각 트라이브 개발자가 배포 전 검수 흐름을 셀프서비스로 운영하도록 돕는다. 운영 도메인은 **https://qualitygate.jkintra.net** (사내망), 로컬 dev 는 `runserver 0.0.0.0:8601` 로 띄운다.
+**QA Quality Gate Portal** 은 Jenkins · Argo CD · Test Suite 를 하나의 품질 관문(Quality Gate) 실행으로 엮어, QA 검수 파이프라인을 한 화면에서 트리거 · 조회 · 제어하는 사내 Django 포털이다. 그동안 Slack · Jenkins · Notion 에 흩어져 있던 QG 운영 정보를 단일 포털로 통합하는 것을 목표로 하며, QPE(품질 엔지니어링) 조직과 각 트라이브 개발자가 배포 전 검수 흐름을 셀프서비스로 운영하도록 돕는다. 접속 주소는 **https://qw.jkintra.net/qg/** (사내망 게이트웨이 `qw.jkintra.net` 경유, 서버는 IDC `wx-qms221`) 이며, 이전 운영 도메인 `qualitygate.jkintra.net`(AWS 원본·ALB)은 2026-10 서버 이관으로 종료됐다. 로컬 dev 는 `runserver 0.0.0.0:8601` 로 띄운다.
 
 ### 무엇을 하는가 — 하나의 Quality Gate Run
 
@@ -143,7 +143,7 @@
                           │  · Service Worker (/sw.js) → OS 알림 / beep      │
                           └───────────────────────┬─────────────────────────┘
                                                   │  GET /qualitygates/runs/<pk>/status/ (5초)
-                                                  │  ALB(HTTPS) → Django(HTTP), X-Forwarded-Proto
+                                                  │  게이트웨이(HTTPS) → Django(HTTP), X-Forwarded-Proto
                                                   v
    ┌──────────────────────────────────────────────────────────────────────────────────┐
    │  Django  (runserver 0.0.0.0:8601)                                                  │
@@ -349,7 +349,7 @@ QA Quality Gate Portal 은 단일 Django 애플리케이션에 모든 도메인(
 ### 4.2 실행 & 배포 토폴로지
 
 - 로컬 dev server: `./run.sh` → `runserver 0.0.0.0:8601` (멀티스레드).
-- 운영: `ALB(HTTPS 종료) → Django(HTTP)` 프록시. `SECURE_PROXY_SSL_HEADER = (HTTP_X_FORWARDED_PROTO, https)` 로 원 HTTPS 프로토콜을 인식하고 `CSRF_TRUSTED_ORIGINS` 에 ALB 도메인 등록. 운영 도메인은 `https://qualitygate.jkintra.net`.
+- 운영: `게이트웨이 nginx(HTTPS 종료, qw.jkintra.net/qg) → Django(HTTP, 8601)` 프록시(게이트웨이가 `/qg/` 접두를 제거, 앱은 `QGP_SCRIPT_NAME=/qg`). `SECURE_PROXY_SSL_HEADER = (HTTP_X_FORWARDED_PROTO, https)` 로 원 HTTPS 프로토콜을 인식하고 `CSRF_TRUSTED_ORIGINS` 에 `https://qw.jkintra.net` 등록(`.env` `DJANGO_CSRF_TRUSTED_ORIGINS`). 접속 주소는 `https://qw.jkintra.net/qg/`, 프로그램 호출은 `https://qw.jkintra.net/qg/ci-api/`(API Key 전용, 게이트웨이 로그인 예외). 이전 AWS 운영 주소 `qualitygate.jkintra.net`(ALB 직결)은 2026-10 서버 이관(IDC)으로 종료됐다.
 - 멀티스레드 runserver 에서 SQLite 쓰기 락 + 외부 API 대기가 겹치면 요청이 밀릴 수 있어, 막힘이 길어지면 `./run.sh` 재기동.
 
 ### 4.3 설정 분기 (`config/settings/`)
@@ -559,6 +559,8 @@ dev 는 eager(동기)라 큐/워커 동작 검증은 불가하고, 운영은 원
 
 ### 7.3 Google Sheets — 담당자 마스터 동기화 (`google_sheets.py` / `services.py`)
 
+> 2026-10 IDC 이관 후 이 호스트에서는 **미사용** — 인증이 AWS 전용 WIF(IMDS 필요)라 IDC 에서 불가해 자격증명·시트 ID 를 비우고 자동 동기화 주기 0 으로 두었다(담당자 마스터는 화면 편집·CSV 업로드로 자체 DB 관리). 아래는 코드 구조 설명이다.
+
 - **자격증명 로드 순서**: `GOOGLE_CREDENTIALS_FILE` > `GOOGLE_SA_JSON_B64` > `GOOGLE_SA_JSON` > `GOOGLE_SA_FILE`. WIF/ADC/service account 모두 지원.
 - **full mirror 정책**: Drive API `files.export(mimeType=text/csv)`로 첫 탭만 CSV export → `import_api_endpoint_owners`(`remove_stale=True`). 시트가 단일 진실 소스이며, **`is_imported=True` row만 update/delete** 대상이고 수동 row(`is_imported=False`)는 보존된다. 동기화 후 `url_matcher.invalidate_match_cache` 호출.
 - **주기 설정**: singleton `OwnerSyncSettings.interval_minutes`(0=끔). 매분 도는 cron `sync_api_owners_from_sheet --if-due`가 이 값과 마지막 `ActivityLog(API_OWNER_IMPORTED)` 시각을 비교해 실행. 화면 "동기화" 버튼은 즉시 트리거.
@@ -745,7 +747,7 @@ GET 요청은 미들웨어를 통과하고, Admin 전용 화면은 뷰 내부에
 - 상태 매핑은 `apps/api_v2/phase.py` 가 DB status → 5단 phase 로 정규화 (queued/running/awaiting_input/succeeded/failed/cancelled). 폴링 권장 간격은 응답 헤더 `X-QGP-Poll-After` (진행 중 5초, terminal 0초)로 제시. 진행 중인 Run 이 있는 게이트에 새 Run 트리거 시 **409 Conflict**.
 - **예외 핸들러**: `apps/api_v2/exceptions.py` 가 DRF 예외와 서비스 레이어 예외(`GateRunError`/`SuiteRunError`)를 표준 스키마 `{error: {code, message, details}}` 로 변환. 이 핸들러는 `/api/v2/` 전용이며, `config/settings/base.py` 의 DRF `DEFAULT_EXCEPTION_HANDLER` 에 등록된다.
 
-상세 사용 예제는 `docs/api_v2_quickstart.md` / `docs/api_guide.md` 참조 (§13 문서 인덱스).
+상세 사용 예제는 `docs/api_guide.md` 참조 (§13 문서 인덱스).
 
 ## 11. 프론트엔드 / UI
 
@@ -816,7 +818,7 @@ qa_qualitygate_portal/
 │  └─ wsgi.py          WSGI 엔트리포인트
 ├─ templates/          base.html + 앱별 템플릿 (qualitygates/suites _run_status partial 등)
 ├─ static/             js/qg_notify.js (글로벌 와처), css/style.css
-├─ docs/               api_guide·api_v2_quickstart·llm_browser_automation_policy·test_script_error_marking_guide
+├─ docs/               api_guide·llm_browser_automation_policy·test_script_error_marking_guide
 ├─ README.md · maintenance.md · PRD.md · prd_api.md · improvement.md · AGENTS.md · SKILLS.md
 ├─ run.sh · run.ps1 · run.bat   실행 스크립트
 ├─ requirements.txt · manage.py · .env.example
@@ -852,7 +854,7 @@ qa_qualitygate_portal/
   2. **`db.sqlite3` 는 절대 write/checkout/reset 하지 않음** — ff-only 라 원격이 DB 를 바꾼 커밋이면 충돌해 동기화만 건너뛴다. DB 변경은 수동 명령으로만.
   3. Python 3.10+ 탐색 → `.venv` 생성/확인 → `requirements.txt` 설치.
   4. `python manage.py migrate --run-syncdb` → `python manage.py runserver 0.0.0.0:8601`.
-- 접속: `http://localhost:8601` (Admin `…/admin/`). 운영 도메인 `https://qualitygate.jkintra.net`.
+- 접속: `http://localhost:8601` (Admin `…/admin/`). 운영 접속 주소 `https://qw.jkintra.net/qg/` (옛 `qualitygate.jkintra.net` 은 2026-10 이관으로 종료).
 - **환경변수**: `.env` (예시는 `.env.example`). SECRET_KEY, DEBUG, ALLOWED_HOSTS, DB/Redis/Celery 연결, `SLACK_BOT_TOKEN`/`SLACK_DEFAULT_CHANNEL`, Google 자격증명, 웹훅 secret 등. **API Key 평문·Slack 토큰은 DB 가 아닌 `.env` 에만**.
 - 마이그레이션/모델 변경 시: `python manage.py migrate` 적용 후 관련 뷰·Admin 화면 정상 로드 확인. runserver 가 멀티스레드 + SQLite 쓰기 락 + 외부 API 대기로 막히면 `./run.sh` 재기동.
 
@@ -881,8 +883,7 @@ qa_qualitygate_portal/
 | `prd_api.md` | API v2 외부 연동 설계 — 다중 API Key, 메타/Run/Suite 조회·트리거·제어, rate limit, 폴링 패턴. |
 | `AGENTS.md` | `.claude/agents/` 서브에이전트 카탈로그 + 병렬 디스패치 패턴. |
 | `SKILLS.md` | 실행 환경·자주 쓰는 명령어·스킬·검증 체크리스트. |
-| `docs/api_v2_quickstart.md` | 외부 자동화 빠른 시작 — API Key 발급, 3시나리오(게이트 실행/단독 Suite/제어), 폴링·에러 표준. |
-| `docs/api_guide.md` | API v2 완전 명세 — 30+ 엔드포인트, Scope/Rate limit, Status↔Phase 매핑, Jenkins/GitHub/Python 예제. |
+| `docs/api_guide.md` | **외부 호출자용 단일 문서** — API Key 발급 + 3시나리오(게이트 실행/단독 Suite/제어) + 30+ 엔드포인트 reference, Scope/Rate limit, Status↔Phase 매핑, 에러 카탈로그, Jenkins/GitHub/Python 예제, FAQ. |
 | `docs/llm_browser_automation_policy.md` | LLM 브라우저 테스트 러너 정책 — UID 재사용 금지, styled control, 팝업/모달 선택 규칙. |
 | `docs/test_script_error_marking_guide.md` | 자동화 스크립트 에러 마킹 2단 가이드 (Level 1 텍스트 / Level 2 JSON) + 포털 파서 연동. |
 | `improvement.md` | API 담당자 매핑 로드맵 — CSV 임포트, URL 정규식 매칭, Error Log 통합, 5개 Phase 계획. |

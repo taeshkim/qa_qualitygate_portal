@@ -34,6 +34,11 @@ SUITE_RUN_STARTED = "suite_run_started"
 SUITE_RUN_PASSED = "suite_run_passed"
 SUITE_RUN_FAILED = "suite_run_failed"
 
+# UI Test Automation — TAP(tapilot) Suite 실행 (apps/suites 의 TapRun)
+TAP_RUN_STARTED = "tap_run_started"
+TAP_RUN_PASSED = "tap_run_passed"
+TAP_RUN_FAILED = "tap_run_failed"
+
 # 공통
 ARGOCD_FAILED = "argocd_failed"
 
@@ -77,6 +82,11 @@ EVENT_TABS = [
             (SUITE_RUN_STARTED, "Suite Run 시작"),
             (SUITE_RUN_PASSED, "Suite Run PASS"),
             (SUITE_RUN_FAILED, "Suite Run FAIL"),
+        ]),
+        ("UI Test Automation (TAP)", [
+            (TAP_RUN_STARTED, "UI Suite 실행 시작"),
+            (TAP_RUN_PASSED, "UI Suite PASS"),
+            (TAP_RUN_FAILED, "UI Suite FAIL"),
         ]),
     ]),
 ]

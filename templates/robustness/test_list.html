@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Reliability Test - Quality Gate Portal{% endblock %}
+{% block title %}Reliability Tests - Quality Gate Portal{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>Reliability Test</h1>
+    <h1>Reliability Tests</h1>
     {% if user.is_admin %}
     <a href="{% url 'robustness:test_register' %}" class="btn btn-primary">
         <i class="fas fa-plus"></i> New Reliability Test
@@ -34,17 +34,17 @@
                         </a>
                     </td>
                     <td class="text-muted" style="max-width:400px">{{ test.description|default:"-"|truncatechars:80 }}</td>
-                    <td>{{ test.schedule_count }}</td>
+                    <td>{{ test.n_schedules }}</td>
                     <td>
-                        {% if test.running_count %}
-                        <span class="status-badge status-running">{{ test.running_count }} running</span>
+                        {% if test.n_running %}
+                        <span class="status-badge status-running">{{ test.n_running }} running</span>
                         {% else %}
                         <span class="text-muted">-</span>
                         {% endif %}
                     </td>
                     <td>{{ test.created_at|date:"Y-m-d H:i" }}</td>
                     <td>
-                        <div style="display:flex;gap:4px;align-items:center">
+                        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
                         <a href="{% url 'robustness:test_detail' test.pk %}" class="btn btn-sm btn-secondary">Detail</a>
                         {% if user.is_admin %}
                         <a href="{% url 'robustness:test_delete' test.pk %}" class="btn btn-sm btn-danger">

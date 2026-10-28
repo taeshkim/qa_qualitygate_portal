@@ -3,12 +3,14 @@
    ============================================================ */
 
 :root {
-    --primary: #2563eb;
-    --primary-hover: #1d4ed8;
+    /* ── accent ── (대시보드 인디고/시안 톤에 맞춤) */
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
     --success: #16a34a;
     --danger: #dc2626;
     --warning: #f59e0b;
     --info: #0ea5e9;
+    /* ── gray scale (light) ── */
     --gray-50: #f9fafb;
     --gray-100: #f3f4f6;
     --gray-200: #e5e7eb;
@@ -19,10 +21,80 @@
     --gray-700: #374151;
     --gray-800: #1f2937;
     --gray-900: #111827;
+    /* ── semantic surfaces / text (light) — 다크모드는 [data-theme=dark] 에서 override ── */
+    --bg: #f5f7fb;            /* 페이지 배경 */
+    --surface: #ffffff;       /* 카드/패널 */
+    --surface-2: #f3f4f6;     /* 은은한 표면 (테이블 헤더/hover, na 배지) */
+    --input-bg: #ffffff;
+    --border: #e5e7eb;
+    --border-strong: #d1d5db;
+    --text: #1f2937;
+    --text-muted: #6b7280;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+    --glass-bg: rgba(255, 255, 255, 0.55);
+    --glass-border: rgba(255, 255, 255, 0.65);
+    /* 인라인 경고/정보 박스용 (템플릿 하드코딩 색 대체) */
+    --warn-bg: #fff8e1;
+    --warn-text: #92400e;
+    --info-bg: #eff6ff;
+    --info-text: #1e3a8a;
+    /* ── 사이드바 (두 테마 공통 다크) ── */
+    --sidebar-bg: #111827;
+    --sidebar-border: #374151;
+    --sidebar-text: #9ca3af;
+    --sidebar-text-active: #ffffff;
+    --sidebar-hover-bg: #374151;
+    /* ── 기타 ── */
     --sidebar-width: 240px;
     --env-dev: #3b82f6;
     --env-stg: #22c55e;
     --env-prd: #f97316;
+}
+
+/* ============================================================
+   다크 모드 — 첨단(command center) 톤: 짙은 슬레이트 + 인디고/시안 강조.
+   semantic 변수 + gray scale 를 다크 값으로 뒤집어, var(--gray-XX)/semantic 을
+   쓰는 컴포넌트가 자동으로 다크에 맞게 렌더된다. 사이드바는 --sidebar-* 로 분리.
+   ============================================================ */
+[data-theme="dark"] {
+    --primary: #6366f1;
+    --primary-hover: #818cf8;
+    --success: #34d399;
+    --danger: #fb7185;
+    --warning: #fbbf24;
+    --info: #38bdf8;
+    /* gray scale 를 다크 기준으로 재정의(낮은 번호=어두운 표면, 높은 번호=밝은 텍스트) */
+    --gray-50: #0f1828;
+    --gray-100: #172238;
+    --gray-200: #283449;
+    --gray-300: #3a4763;
+    --gray-400: #7e8ca6;
+    --gray-500: #97a4ba;
+    --gray-600: #aeb9cf;
+    --gray-700: #c8d0e2;
+    --gray-800: #e7ebf5;
+    --gray-900: #070d18;
+    /* semantic */
+    --bg: #0a111e;
+    --surface: #131d31;
+    --surface-2: #1b2740;
+    --input-bg: #0e1828;
+    --border: #29354c;
+    --border-strong: #3a4763;
+    --text: #e7ebf5;
+    --text-muted: #94a3b8;
+    --shadow-color: rgba(0, 0, 0, 0.55);
+    --glass-bg: rgba(255, 255, 255, 0.045);
+    --glass-border: rgba(255, 255, 255, 0.10);
+    --warn-bg: rgba(245, 158, 11, 0.13);
+    --warn-text: #fbbf24;
+    --info-bg: rgba(99, 102, 241, 0.15);
+    --info-text: #a5b4fc;
+    /* 사이드바도 다크 톤에 맞춰 살짝 조정(콘텐츠 배경과 분리) */
+    --sidebar-bg: #0c1626;
+    --sidebar-border: #1f2c44;
+    --sidebar-hover-bg: #1b2740;
+    color-scheme: dark;
 }
 
 * {
@@ -33,9 +105,10 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--gray-50);
-    color: var(--gray-800);
+    background: var(--bg);
+    color: var(--text);
     line-height: 1.6;
+    transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* Layout */
@@ -47,7 +120,7 @@ body {
 /* Sidebar */
 .sidebar {
     width: var(--sidebar-width);
-    background: var(--gray-900);
+    background: var(--sidebar-bg);
     color: white;
     position: fixed;
     top: 0;
@@ -60,7 +133,7 @@ body {
 
 .sidebar-header {
     padding: 20px;
-    border-bottom: 1px solid var(--gray-700);
+    border-bottom: 1px solid var(--sidebar-border);
 }
 
 .sidebar-header h2 {
@@ -80,7 +153,7 @@ body {
     align-items: center;
     gap: 12px;
     padding: 10px 20px;
-    color: var(--gray-400);
+    color: var(--sidebar-text);
     text-decoration: none;
     font-size: 0.9rem;
     transition: all 0.2s;
@@ -88,8 +161,8 @@ body {
 
 .nav-menu li a:hover,
 .nav-menu li a.active {
-    color: white;
-    background: var(--gray-700);
+    color: var(--sidebar-text-active);
+    background: var(--sidebar-hover-bg);
 }
 
 .nav-menu li a.active {
@@ -131,9 +204,35 @@ body {
 /* Main Content */
 .main-content {
     flex: 1;
+    min-width: 0; /* flex item 이 내부 wide 콘텐츠(테이블 등)로 인해 뷰포트를 넘지 않도록 */
     margin-left: var(--sidebar-width);
     padding: 24px 32px;
 }
+
+/* 전역 오로라 배경 — 콘텐츠 영역(사이드바 오른쪽)에 깔리는 은은한 그라데이션.
+   모든 페이지가 대시보드와 같은 톤을 갖도록 base.html 에 <div class="app-bg"> 1개.
+   라이트/다크 각각 톤 분리. (대시보드 글래스 카드는 이 배경을 blur 해 유리 질감) */
+.app-bg {
+    position: fixed;
+    top: 0; right: 0; bottom: 0;
+    left: var(--sidebar-width);
+    z-index: -1;
+    background:
+        radial-gradient(1100px 560px at 8% -14%, rgba(99, 102, 241, 0.18), transparent 60%),
+        radial-gradient(900px 520px at 99% -8%, rgba(6, 182, 212, 0.16), transparent 55%),
+        radial-gradient(820px 640px at 62% 116%, rgba(139, 92, 246, 0.12), transparent 55%),
+        linear-gradient(180deg, #f4f6ff 0%, #eef1f8 55%, #ebeff9 100%);
+}
+[data-theme="dark"] .app-bg {
+    background:
+        radial-gradient(1100px 560px at 8% -14%, rgba(99, 102, 241, 0.28), transparent 60%),
+        radial-gradient(900px 520px at 99% -8%, rgba(6, 182, 212, 0.22), transparent 55%),
+        radial-gradient(820px 640px at 62% 116%, rgba(139, 92, 246, 0.20), transparent 55%),
+        linear-gradient(180deg, #0a111e 0%, #0b1424 55%, #0a1120 100%);
+}
+/* Mobile top bar + off-canvas drawer (기본은 숨김 — ≤768px 미디어쿼리에서 활성) */
+.mobile-topbar { display: none; }
+.sidebar-overlay { display: none; }
 
 /* Page Header */
 .page-header {
@@ -143,16 +242,25 @@ body {
     margin-bottom: 24px;
 }
 
+/* 타이틀 — 전 페이지 동일하게 인디고→시안 그라데이션 텍스트(대시보드 톤) */
 .page-header h1 {
     font-size: 1.5rem;
-    font-weight: 600;
+    font-weight: 700;
+    background: linear-gradient(90deg, #4f46e5 0%, #06b6d4 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    width: fit-content;
+    max-width: 100%;
 }
 
 /* Cards */
 .card {
-    background: white;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 3px var(--shadow-color);
     padding: 20px;
     margin-bottom: 20px;
 }
@@ -301,13 +409,13 @@ body {
 .qg-section {
     flex: 1 1 0;
     min-width: 0;
-    border: 1px solid var(--gray-200);
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 0;
-    background: #fff;
+    background: var(--surface);
     display: flex;
     flex-direction: column;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 6px rgba(0, 0, 0, 0.03);
+    box-shadow: 0 1px 2px var(--shadow-color), 0 2px 6px var(--shadow-color);
     overflow: hidden;
     position: relative;
 }
@@ -354,8 +462,8 @@ body {
     font-weight: 700;
     color: var(--gray-700);
     padding: 12px 16px;
-    background: linear-gradient(to bottom, var(--gray-50), #fff);
-    border-bottom: 1px solid var(--gray-200);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
@@ -414,11 +522,11 @@ body {
     flex: 0 0 auto;
     width: auto;
     min-width: 0;
-    border: 1px solid var(--gray-200);
+    border: 1px solid var(--border);
     border-left: 4px solid var(--gray-300);
     border-radius: 6px;
     padding: 12px 14px;
-    background: #fff;
+    background: var(--surface);
     transition: box-shadow 0.15s ease;
 }
 
@@ -599,6 +707,16 @@ body {
     font-size: 0.8rem;
 }
 
+/* 비활성 버튼 — 커스텀 .btn 배경색이 브라우저 기본 회색 처리를 덮으므로 명시 지정.
+   hover 배경 변화도 비활성 시엔 원래 색 그대로 유지(클릭 가능처럼 보이지 않게). */
+.btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.btn-primary:disabled:hover { background: var(--primary); }
+.btn-danger:disabled:hover { background: var(--danger); }
+.btn-secondary:disabled:hover { background: var(--gray-100); }
+
 .btn-full {
     width: 100%;
     justify-content: center;
@@ -633,16 +751,18 @@ body {
 .form-input {
     width: 100%;
     padding: 8px 12px;
-    border: 1px solid var(--gray-300);
+    border: 1px solid var(--border-strong);
     border-radius: 6px;
     font-size: 0.9rem;
+    background: var(--input-bg);
+    color: var(--text);
     transition: border-color 0.2s;
 }
 
 .form-input:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
 }
 
 .select-list {
@@ -670,7 +790,7 @@ body {
 }
 
 .select-item.selected {
-    background: #eff6ff;
+    background: var(--info-bg);
     border-left: 3px solid var(--primary);
 }
 
@@ -802,6 +922,12 @@ body {
     border: 1px solid #fde68a;
 }
 
+.alert-info {
+    background: var(--info-bg);
+    color: var(--info-text);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
 /* Login Page */
 .login-container {
     display: flex;
@@ -812,7 +938,7 @@ body {
 }
 
 .login-card {
-    background: white;
+    background: var(--surface);
     padding: 40px;
     border-radius: 12px;
     width: 100%;
@@ -833,6 +959,27 @@ body {
     margin-bottom: 24px;
 }
 
+/* 로그인 — SSO 버튼 중심(Keycloak 전용 로그인 페이지) */
+.login-container { padding: 16px; box-sizing: border-box; }
+.login-sso-btn {
+    display: block;
+    box-sizing: border-box;
+    padding: 14px 16px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+}
+[data-theme="dark"] .login-container { background: linear-gradient(135deg, #070d18 0%, #172238 100%); }
+.login-sso-btn + .login-sso-btn { margin-top: 8px; }
+.login-sso-help {
+    margin: 14px 0 0;
+    text-align: center;
+    color: var(--gray-500);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
 /* Metric Cards */
 .metric-cards {
     display: grid;
@@ -842,10 +989,10 @@ body {
 }
 
 .metric-card {
-    background: white;
+    background: var(--surface);
     border-radius: 8px;
     padding: 20px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 3px var(--shadow-color);
     text-align: center;
 }
 
@@ -876,10 +1023,11 @@ body {
 /* Triage Select */
 .triage-select {
     padding: 4px 8px;
-    border: 1px solid var(--gray-300);
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     font-size: 0.8rem;
-    background: white;
+    background: var(--input-bg);
+    color: var(--text);
     cursor: pointer;
 }
 
@@ -900,21 +1048,148 @@ body {
 .mono { font-family: monospace; }
 .float-right { float: right; }
 
-/* Responsive */
+/* ============================================================
+   Responsive — 태블릿/모바일
+   ============================================================ */
+
+/* 태블릿 (≤1024px): 사이드바 폭 축소, 콘텐츠 패딩 완화 */
+@media (max-width: 1024px) and (min-width: 769px) {
+    :root { --sidebar-width: 200px; }
+    .main-content { padding: 20px 22px; }
+}
+
+/* 모바일 (≤768px): 사이드바를 off-canvas 드로어로, 상단에 햄버거 바 */
 @media (max-width: 768px) {
+    /* 사이드바가 fixed 드로어이므로 .layout 의 flex 레이아웃이 불필요.
+       block 으로 두어 .main-content 가 일반 블록(전체 폭)으로 동작 → flex intrinsic-size
+       엣지케이스(긴 타이틀이 좁게 줄바꿈되던 문제) 회피. */
+    .layout { display: block; }
+
+    /* 상단 바 */
+    .mobile-topbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        position: fixed;
+        top: 0; left: 0; right: 0;
+        height: 52px;
+        padding: 0 12px;
+        background: var(--sidebar-bg);
+        color: #fff;
+        z-index: 1080;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+    }
+    .mobile-topbar .brand {
+        font-weight: 700;
+        font-size: 1.05rem;
+        color: #fff;
+        text-decoration: none;
+    }
+    .hamburger-btn {
+        background: transparent;
+        border: none;
+        color: #fff;
+        font-size: 1.3rem;
+        line-height: 1;
+        padding: 6px 8px;
+        cursor: pointer;
+        border-radius: 6px;
+    }
+    .hamburger-btn:hover { background: rgba(255, 255, 255, 0.12); }
+
+    /* 사이드바 → 드로어 */
     .sidebar {
-        width: 60px;
+        width: min(var(--sidebar-width), 82vw);
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        z-index: 1100;
     }
-    .sidebar-header h2,
-    .nav-menu li a span,
-    .sidebar-footer .user-info span,
-    .sidebar-footer .logout-link {
-        display: none;
+    .sidebar.open {
+        transform: translateX(0);
+        box-shadow: 6px 0 28px rgba(0, 0, 0, 0.4);
     }
+
+    /* 오버레이 */
+    .sidebar-overlay {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.25s ease, visibility 0.25s ease;
+        z-index: 1090;
+    }
+    .sidebar-overlay.open { opacity: 1; visibility: visible; }
+
+    /* 드로어 열렸을 때 본문 스크롤 잠금 */
+    body.nav-open { overflow: hidden; }
+
+    /* 콘텐츠 — 전체 폭 + 상단 바 높이만큼 패딩 */
     .main-content {
-        margin-left: 60px;
+        margin-left: 0;
         padding: 16px;
+        padding-top: 68px;
     }
+    .app-bg { left: 0; top: 52px; }
+
+    /* 헤더 — 세로로 쌓아 타이틀 한 줄 확보 + 액션 버튼은 아래로(중첩 wrapper 구조도 안전).
+       (가로 squeeze 가 사라지므로 word-break/overflow-wrap 으로 강제 분할하지 않는다.) */
+    .page-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    .page-header h1 {
+        width: 100%;
+        max-width: 100%;
+        font-size: 1.25rem;
+    }
+
+    /* 탭 스트립(관리자/이벤트) — 줄바꿈으로 깨지지 않게 가로 스크롤 */
+    .admin-tabs, .event-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .admin-tabs a, .event-tab-btn { white-space: nowrap; flex: 0 0 auto; }
+
+    /* 필터 폼 — 줄바꿈 + select 폭 제한 해제 */
+    .filter-form { flex-wrap: wrap; }
+    .filter-form select, .filter-form .form-input { min-width: 0; }
+
+    /* 카드/폼 패딩 완화 */
+    .card { padding: 16px; }
+    .form-row { flex-wrap: wrap; }
+
+    /* 상세 그리드 1열로 */
+    .detail-grid { grid-template-columns: 1fr; }
+    .result-summary { flex-wrap: wrap; gap: 14px; }
+
+    /* QG 파이프라인 섹션 — 모바일에서 세로 쌓기 (가로 오버플로우 방지) */
+    .qg-pipeline { flex-direction: column; }
+    .qg-section + .qg-section { margin-left: 0; margin-top: 12px; }
+    .qg-section-tests { flex: unset; }
+
+    /* 토스트 — 화면 폭에 맞춤 */
+    #qg-toast-container {
+        left: 12px;
+        right: 12px;
+        top: 64px;
+        max-width: none;
+    }
+
+    /* 우하단 OS 알림 진단 클러스터 — 화면 넘침 방지 */
+    #qg-global-notify-test { bottom: 12px; right: 12px; left: 12px; align-items: flex-end; }
+    #qg-notify-guide, #qg-diag-result { max-width: calc(100vw - 24px); }
+}
+
+/* 초소형 (≤480px): 가독성 위해 폰트/패딩 한 단계 더 */
+@media (max-width: 480px) {
+    .main-content { padding: 14px; padding-top: 64px; }
+    .page-header h1 { font-size: 1.15rem; }
+    .card { padding: 14px; }
+    .table th, .table td { padding: 8px 9px; font-size: 0.84rem; }
 }
 
 /* Inline-save 입력 피드백 (robustness 스케줄 간격 등) */
@@ -927,6 +1202,31 @@ body {
     border-color: var(--danger, #dc2626);
     box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
 }
+
+/* ============================================================
+   다크 모드 — 라이트 전용 하드코딩 tint(스타일시트 내) override.
+   (var(--gray-*)/semantic 을 쓰는 곳은 위에서 자동 전환되므로 여기엔
+    리터럴 light hex 로 칠해진 surface tint 만 모은다.)
+   ============================================================ */
+/* QG 파이프라인 스텝 — 섹션별/상태별 옅은 배경 tint 를 다크 반투명으로 */
+[data-theme="dark"] .qg-section:nth-of-type(1) .qg-step:not(.qg-step-active):not(.qg-step-done):not(.qg-step-fail) { background: rgba(59, 130, 246, 0.10); }
+[data-theme="dark"] .qg-section:nth-of-type(2) .qg-step:not(.qg-step-active):not(.qg-step-done):not(.qg-step-fail) { background: rgba(139, 92, 246, 0.10); }
+[data-theme="dark"] .qg-section:nth-of-type(3) .qg-step:not(.qg-step-active):not(.qg-step-done):not(.qg-step-fail) { background: rgba(249, 115, 22, 0.10); }
+[data-theme="dark"] .qg-step-active  { background: rgba(245, 158, 11, 0.14); }
+[data-theme="dark"] .qg-step-done    { background: rgba(34, 197, 94, 0.11); }
+[data-theme="dark"] .qg-step-fail    { background: rgba(239, 68, 68, 0.12); }
+[data-theme="dark"] .qg-step-waiting { background: rgba(255, 255, 255, 0.03); }
+
+/* 알림(alert) 박스 — 다크 반투명 + 밝은 텍스트 */
+[data-theme="dark"] .alert-error   { background: rgba(239, 68, 68, 0.13);  color: #fca5a5; border-color: rgba(239, 68, 68, 0.32); }
+[data-theme="dark"] .alert-success { background: rgba(34, 197, 94, 0.13);  color: #86efac; border-color: rgba(34, 197, 94, 0.32); }
+[data-theme="dark"] .alert-info    { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; border-color: rgba(99, 102, 241, 0.35); }
+[data-theme="dark"] .alert-warning { background: rgba(245, 158, 11, 0.13); color: #fcd34d; border-color: rgba(245, 158, 11, 0.32); }
+
+/* 상태 배지 — 다크에서도 또렷하게(옅은 pill → 반투명 + 밝은 글자) */
+[data-theme="dark"] .status-pass    { background: rgba(34, 197, 94, 0.18);  color: #86efac; }
+[data-theme="dark"] .status-fail    { background: rgba(239, 68, 68, 0.18);  color: #fca5a5; }
+[data-theme="dark"] .status-running { background: rgba(59, 130, 246, 0.20); color: #93c5fd; }
 .interval-input.htmx-request {
     opacity: 0.6;
 }
@@ -978,9 +1278,92 @@ body {
     color: var(--primary, #2563eb);
     border-bottom-color: var(--primary, #2563eb);
 }
+/* 링크형 내부 탭 (서버 라우팅 ?tab= — 담당자 관리 API/UI) */
+a.event-tab-btn {
+    display: inline-block;
+    text-decoration: none;
+}
 .event-tab-panel {
     display: none;
 }
 .event-tab-panel.active {
     display: block;
+}
+
+/* ============================================================
+   Visualization — Quality Highway
+   ============================================================ */
+.hw-caption {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.88rem;
+    color: var(--text);
+}
+.hw-caption .text-muted { font-size: 0.82rem; }
+.hw-stage {
+    position: relative;
+    width: 100%;
+    height: clamp(420px, 62vh, 720px);
+    background: var(--surface-2);
+}
+#qg-highway {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+}
+.hw-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+.hw-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    flex: 0 0 auto;
+}
+.hw-empty {
+    position: absolute;
+    inset: 0;
+    display: none;            /* JS 가 데이터 유무로 토글 */
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    pointer-events: none;
+}
+.hw-tip {
+    position: absolute;
+    z-index: 1400;
+    display: none;
+    max-width: 280px;
+    padding: 8px 11px;
+    border-radius: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 6px 20px var(--shadow-color);
+    font-size: 0.82rem;
+    color: var(--text);
+    pointer-events: none;
+}
+.hw-tip-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-weight: 700;
+    margin-bottom: 3px;
+}
+.hw-tip-row { font-size: 0.78rem; }
+.hw-tip-dim { color: var(--text-muted); margin-top: 2px; }
+
+@media (max-width: 768px) {
+    .hw-stage { height: clamp(320px, 52vh, 460px); }
 }

@@ -69,10 +69,11 @@
 
 ```
 POST /api/v2/suites/{suite_id}/runs
-  body: {"job_id": "..."}   # job_id 생략 시 default job 1개 선택 정책은 §6.4
+  body: {}                  # job_id 생략 → 활성 대상 Job 전체 순차 체인 (§6.4)
+  body: {"job_id": "..."}   # 특정 Job 1개만 (하위호환)
 → 201 {"suite_run_id": "...", "status": "running"}
-GET  /api/v2/suite-runs/{suite_run_id}
-→ 200 {"status": "completed", "passed_jobs": 1, "failed_jobs": 0, ...}
+GET  /api/v2/suite-runs/{suite_run_id}/status/
+→ 200 {"status": "completed", "result": "passed", "passed_jobs": 5, "failed_jobs": 0, ...}
 ```
 
 ### 3.3 사내 대시보드가 게이트 목록과 최근 Run 을 표시
@@ -209,7 +210,7 @@ POST   /api/v2/runs/{run_id}/argocd/{stage}/retry/       stage ∈ deploy|prod
 GET    /api/v2/suites/                                   Suite 목록 (filter: q, service)
 GET    /api/v2/suites/{suite_id}/                        Suite 상세 (jobs 포함)
 GET    /api/v2/suites/{suite_id}/runs/                   Suite Run 목록
-POST   /api/v2/suites/{suite_id}/runs/                   Suite Run 트리거 (1 job)
+POST   /api/v2/suites/{suite_id}/runs/                   Suite Run 트리거 (job_id 지정=1 job / 생략=전체 순차 체인)
 GET    /api/v2/suite-runs/{suite_run_id}/                Suite Run 단건
 POST   /api/v2/suite-runs/{suite_run_id}/cancel/         Suite Run 취소
 GET    /api/v2/suite-job-runs/{job_run_id}/console/      Suite Job 콘솔 로그
@@ -322,21 +323,39 @@ GET    /api/v2/suite-job-runs/{job_run_id}/console/      Suite Job 콘솔 로그
 ### 6.4 `POST /api/v2/suites/{suite_id}/runs/`
 
 ```json
-{ "job_id": "uuid-or-null" }
+{ "job_id": "uuid-or-null", "run_all": false }
 ```
 
-`job_id` 가 null 이면 **거부 (400 `job_required`)** — 기존 `suite_run` 뷰가 1개 Job 만 지원하고 default 선택 정책이 없으므로, 외부 호출도 명시 강제. (향후 정책 추가 시 확장.)
+3가지 트리거 모드:
 
-**Response 201**:
+| body | 동작 |
+|---|---|
+| `{"job_id": "<uuid>"}` | 지정한 Job **1개만** 실행 (`total_jobs=1`, 하위호환) |
+| `{}` / body 없음 / `job_id` 생략 (기본) | 활성 대상 Job(`is_active=true & is_target=true`) 중 **idle worker 1개만** 선택해 실행. `order` 앞 순 우선 |
+| `{"run_all": true}` | 활성 대상 Job **전체**를 `order` 순 **순차 체인**으로 실행 |
+
+- **idle 판정**: Jenkins `lastBuild` 조회 성공 + `building=false` (또는 미빌드 404) 만 idle. 연결 오류 / 인증 실패 / 5xx 등 확인 불가 Job 은 건너뜀 ("검증되지 않은 worker 는 실행하지 않는다").
+- **기본 모드(idle 1개)에서 검증된 idle 가 없으면** → **409 `all_workers_busy`** — Run 을 생성하지 않는다. 잠시 후 재시도.
+- 활성 대상 Job 이 하나도 없으면 **409 `no_active_jobs`**.
+- 진행 중(`running`) Run 이 이미 있으면 **409 `run_already_active`** (`details.suite_run_id`).
+
+서비스 구현: `apps/suites/services.py:trigger_suite_run(*, suite, user, job_id="", run_all=False)` → `_trigger_single_job_run` / `_trigger_chain_run`(run_all) / `_trigger_single_idle_run`(기본). idle 선택 헬퍼: `apps/suites/views.py:pick_idle_job(suite, jobs)`.
+
+> 변경 이력: 초기 구현은 `job_id` 필수(없으면 400 `job_required`)였으나, deview 등 외부 자동화가 Job 구조를 모른 채 호출해 Jenkins 빌드가 동시에 N개 도는 문제로 **체인 자동 실행**으로 1차 확장 후 (`job_required` 코드 폐기), 이어서 **idle worker 풀 모델(기본)** 로 변경 — 기본 호출이 idle 1개만 골라 실행하고 전체 체인은 `run_all=true` 로 명시 지정하는 형태.
+
+**Response 201** (모든 모드 동일):
 ```json
 {
   "suite_run_id": "uuid",
   "suite_id": "uuid",
   "status": "running",
+  "total_jobs": 1,
   "self_url": "/api/v2/suite-runs/{uuid}/",
   "detail_url": "/suites/runs/{uuid}/"
 }
 ```
+
+**폴링 — Pass/Fail (`GET /api/v2/suite-runs/{id}/status/`)**: 응답에 `result` 필드(`"passed"` / `"failed"` / `null`)가 포함된다. 종료 전에는 `null`, 종료 후 실패 Job 이 하나라도 있으면 `"failed"`, 아니면 `"passed"`. 개별 Job 결과는 단건 응답 `job_runs[].result` 로 확인.
 
 ### 6.5 `GET /api/v2/gates/{gate_id}/params/?stage=image|deploy|prod&refresh=1`
 
@@ -498,7 +517,7 @@ G-1. Rate limit (DRF custom throttle, scope 별)
 G-2. 에러 표준 응답 (`api_v2.exception_handler`)
 G-3. 응답 헤더 `X-QGP-Poll-After`
 G-4. README.md / maintenance.md / CLAUDE.md 갱신
-G-5. 외부 호출자용 quickstart 문서 (`docs/api_v2_quickstart.md`)
+G-5. 외부 호출자용 가이드 문서 (`docs/api_guide.md` — 구 `api_v2_quickstart.md` 통합)
 
 ---
 
@@ -526,7 +545,7 @@ G-5. 외부 호출자용 quickstart 문서 (`docs/api_v2_quickstart.md`)
   - §7 권한 / 인증에 ApiKey + scope 매트릭스
   - §10 자주 하는 변경에 "스코프 / 엔드포인트 추가" 항목
 - `CLAUDE.md`: 변동 없음 (작업 절차는 그대로). API key 평문 절대 로그 금지만 추가 고려.
-- 신규 `docs/api_v2_quickstart.md` — 외부 호출자용 curl 예제 + 폴링 패턴 + 에러 코드 카탈로그
+- `docs/api_guide.md` — 외부 호출자용 curl 예제 + 폴링 패턴 + 에러 코드 카탈로그 (구 `api_v2_quickstart.md` 통합)
 
 ---
 

@@ -11,7 +11,7 @@
         <span class="text-muted" style="font-weight:normal;margin:0 6px">/</span>
         <i class="fas fa-folder-open" style="color:#6366f1"></i> {{ subfolder.name }}
     </h1>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
         {% if user.is_admin %}
         <a href="{% url 'qualitygates:gate_register' subfolder.pk %}" class="btn btn-primary">
             <i class="fas fa-plus"></i> Gate 등록
@@ -78,7 +78,7 @@
                         {% endwith %}
                     </td>
                     <td>
-                        <div style="display:inline-flex;gap:4px;align-items:center">
+                        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
                             <a href="{% url 'qualitygates:gate_detail' gate.pk %}" class="btn btn-sm btn-secondary">Detail</a>
                             {% if user.is_admin %}
                             <a href="{% url 'qualitygates:gate_delete' gate.pk %}" class="btn btn-sm btn-danger">

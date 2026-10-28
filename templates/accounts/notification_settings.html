@@ -126,7 +126,7 @@
         {% endfor %}
     </div>
 
-    <div style="display:flex;gap:8px;align-items:center;margin-top:16px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:16px">
         <button type="submit" class="btn btn-primary">
             <i class="fas fa-save"></i> 저장
         </button>
@@ -149,7 +149,7 @@
         {% csrf_token %}
         <input type="text" name="channel"
                placeholder="채널 (비워두면 기본 채널 사용)"
-               style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;min-width:280px"/>
+               style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;min-width:280px;max-width:100%;flex:1"/>
         <button type="submit" class="btn btn-secondary">
             <i class="fas fa-paper-plane"></i> 전송
         </button>

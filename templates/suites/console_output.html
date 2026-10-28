@@ -20,10 +20,16 @@
             <strong>Status:</strong>
             {% if job_run.status == "success" %}
             <span class="status-badge status-pass">SUCCESS</span>
-            {% elif job_run.status == "failure" %}
-            <span class="status-badge status-fail">FAILURE</span>
-            {% elif job_run.status == "aborted" %}
-            <span class="status-badge status-na">ABORTED</span>
+            {% elif job_run.status == "failure" or job_run.status == "aborted" %}
+                {% if job_run.verdict == "skip" %}
+                <span class="status-badge status-na" title="Slack Triage — Skip 분류{% if job_run.triaged_by %} · {{ job_run.triaged_by }}{% endif %}">⏭️ SKIP</span>
+                {% elif job_run.verdict == "failure" %}
+                <span class="status-badge status-fail" title="Slack Triage — 실장애 분류{% if job_run.triaged_by %} · {{ job_run.triaged_by }}{% endif %}">🔴 FAILURE</span>
+                {% elif job_run.status == "aborted" %}
+                <span class="status-badge status-na">ABORTED</span>
+                {% else %}
+                <span class="status-badge status-fail" title="미분류">FAIL</span>
+                {% endif %}
             {% else %}
             <span class="status-badge status-running">{{ job_run.status|upper }}</span>
             {% endif %}
@@ -118,7 +124,7 @@
     {% else %}
     <p class="text-muted" style="padding:20px;text-align:center">
         <i class="fas fa-info-circle"></i> 콘솔 로그가 아직 저장되지 않았습니다.
-        {% if job_run.status in "pending,queued,running" %}
+        {% if job_run.status in "pending,waiting,queued,running" %}
         빌드 완료 후 자동으로 저장됩니다.
         {% endif %}
     </p>

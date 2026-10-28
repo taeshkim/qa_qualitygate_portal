@@ -1,24 +1,31 @@
-from django.contrib.auth import views as auth_views
 from django.urls import path
 
 from apps.integrations import views as int_views
 
-from . import views
+from . import sso, views
 
 app_name = "accounts"
 
 urlpatterns = [
-    path("login/", auth_views.LoginView.as_view(template_name="accounts/login.html"), name="login"),
-    path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+    path("login/", sso.login_view, name="login"),
+    path("logout/", sso.logout_view, name="logout"),
+    # 게이트웨이 진입 — 이 경로만 게이트웨이(internal)가 보호한다. 통과하면 헤더로 앱 세션이 만들어져 대시보드로 간다.
+    path("gateway-login/", sso.gateway_entry_view, name="gateway_login"),
+    # SSO(Keycloak OIDC) — Keycloak 에 등록할 redirect URI: https://<호스트>[/qg]/accounts/oidc/internal/callback/
+    path("oidc/<str:provider>/login/", sso.sso_login, name="sso_login"),
+    path("oidc/<str:provider>/callback/", sso.sso_callback, name="sso_callback"),
     path("signup/", views.signup, name="signup"),
     # 관리자 - 사용자 관리
     path("users/", views.user_list, name="user_list"),
+    path("users/new/", views.user_create, name="user_create"),
     path("users/<uuid:pk>/update/", views.user_update, name="user_update"),
     path("users/<uuid:pk>/toggle-active/", views.user_toggle_active, name="user_toggle_active"),
     path("users/<uuid:pk>/delete/", views.user_delete, name="user_delete"),
     # 관리자 - Slack 알림 설정
     path("notifications/", views.notification_settings, name="notification_settings"),
     path("notifications/test/", views.notification_settings_test, name="notification_settings_test"),
+    # 관리자 - 포털 설정 (메뉴 표시 등)
+    path("portal-settings/", views.portal_settings, name="portal_settings"),
     # API Key 관리 (본인)
     path("api-keys/", views.api_key_list, name="api_key_list"),
     path("api-keys/new/", views.api_key_create, name="api_key_create"),
@@ -45,6 +52,8 @@ urlpatterns = [
     # 대체 담당자 (singleton) 저장 + 매칭 실패 URL 의 노티
     path("api-owners/fallback/save/", int_views.fallback_owners_save, name="fallback_owners_save"),
     path("api-owners/fallback/notify/", int_views.notify_fallback_owners, name="notify_fallback_owners"),
+    # UI Test Automation(TAP) 실패 알림 담당자 (singleton) 저장 — 담당자 관리 UI 탭
+    path("api-owners/ui/save/", int_views.ui_owners_save, name="ui_owners_save"),
     # Slack 자동 매칭 디버그 페이지
     path("slack-users/", int_views.slack_users_debug, name="slack_users_debug"),
 ]

@@ -6,7 +6,7 @@
 
 <!-- Result Banner -->
 <div class="card" style="margin-bottom:20px">
-    <div style="display:flex;align-items:center;gap:16px">
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
         <div>
             {% if run.is_cancelled %}
             <span class="result-large status-na" style="font-size:1.5rem">CANCELLED</span>
@@ -92,6 +92,12 @@
                 <div title="{{ run.image_git_commit }}">
                     <i class="fas fa-hashtag"></i>
                     <span class="mono">{{ run.image_git_commit|slice:":8" }}</span>
+                </div>
+                {% endif %}
+                {% if run.image_app_tag %}
+                <div title="{{ run.image_app_tag }}">
+                    <i class="fas fa-tag"></i>
+                    <span class="mono">{{ run.image_app_tag }}</span>
                 </div>
                 {% endif %}
                 {% if run.image_stages_json %}
@@ -255,6 +261,9 @@
             <div class="qg-step-header">
                 <span class="qg-step-number">{{ forloop.counter|add:1|add:step_offset }}</span>
                 <strong>QG-{{ tr.gate_suite.test_suite.name }}</strong>
+                {% if tr.retry_limit > 1 or tr.attempt > 1 %}
+                <span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:var(--gray-200,#e5e7eb);color:var(--gray-600,#4b5563);vertical-align:middle">재시도 {{ tr.attempt }}/{{ tr.retry_limit }}</span>
+                {% endif %}
                 {% if tr.status == "testing" %}
                 <span class="status-badge status-running">Testing</span>
                 {% elif tr.status == "passed" %}
@@ -341,7 +350,7 @@
                 {% elif run.status == "prod_deploy_failed" %}
                 <span class="status-badge status-fail">Failed</span>
                 {% elif run.status == "qg_passed" %}
-                <span class="status-badge status-na">Waiting</span>
+                <span class="status-badge status-na" title="검수 통과 — 검수통과 환경 배포 승인 대기">승인 대기</span>
                 {% endif %}
             </div>
             <div class="qg-step-body">
@@ -456,10 +465,13 @@
 
 {% if run.can_prod_deploy and user.can_write %}
 <div class="card" style="text-align:center;padding:24px">
-    <p style="margin-bottom:12px;font-size:1.1rem"><strong>QG 검수 통과!</strong> 검수통과 환경 배포를 실행하시겠습니까?</p>
+    <p style="margin-bottom:6px;font-size:1.1rem"><strong>QG 검수 통과 — 검수통과 환경 배포 승인 대기</strong></p>
+    <p style="margin-bottom:12px;color:var(--gray-600);font-size:0.92rem">
+        <i class="fas fa-info-circle"></i> 이 단계가 운영 배포 전 <strong>최종 승인</strong>입니다. 아래 버튼을 누르면 검수통과 환경 배포가 <strong>승인·실행</strong>됩니다.
+    </p>
     <button type="button" class="btn btn-primary" style="font-size:1rem;padding:12px 32px"
             onclick="openProdModal('{% url 'qualitygates:prod_deploy_params' run.pk %}', '{% url 'qualitygates:prod_deploy' run.pk %}', '{{ csrf_token }}')">
-        <i class="fas fa-rocket"></i> 검수통과 환경 배포 실행
+        <i class="fas fa-rocket"></i> 승인 후 검수통과 환경 배포 실행
     </button>
 </div>
 {% endif %}

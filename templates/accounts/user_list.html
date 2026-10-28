@@ -61,7 +61,12 @@
 
 <!-- 활성 사용자 -->
 <div class="card">
-    <h2 class="card-title">전체 사용자 ({{ active_users|length }}명)</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <h2 class="card-title" style="margin-bottom:0">전체 사용자 ({{ active_users|length }}명)</h2>
+        <a href="{% url 'accounts:user_create' %}" class="btn btn-primary btn-sm">
+            <i class="fas fa-user-plus"></i> 사용자 추가
+        </a>
+    </div>
     <div class="table-wrapper">
         <table class="table">
             <thead>
@@ -83,7 +88,7 @@
                     <td>{{ u.email|default:"-" }}</td>
                     <td>
                         <form method="post" action="{% url 'accounts:user_update' u.pk %}"
-                              style="display:flex;gap:4px;align-items:center">
+                              style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
                             {% csrf_token %}
                             <select name="role" class="form-input" style="width:auto;padding:4px 8px;font-size:0.82rem">
                                 {% for value, label in role_choices %}

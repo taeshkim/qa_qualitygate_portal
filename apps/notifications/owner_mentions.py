@@ -210,7 +210,7 @@ def build_error_followup_text(
 
     if portal_log_url:
         lines.append("")
-        lines.append(f":mag: <{portal_log_url}|포털 로그에서 보기>")
+        lines.append(f":mag: <{portal_log_url}|에러 로그 상세 보기>")
 
     text = "\n".join(lines)
     if len(text) > SLACK_TEXT_LIMIT:

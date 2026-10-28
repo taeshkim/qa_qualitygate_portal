@@ -1,0 +1,24 @@
+[Unit]
+Description=QG Portal — Slack Triage 버튼 리스너 (Socket Mode)
+After=network-online.target
+Wants=network-online.target
+# 크래시 루프 방지: 60초 내 5회 이상 재시작하면 잠시 멈춤
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=taeshkim
+Group=taeshkim
+WorkingDirectory=/home/taeshkim/qa_qualitygate_portal
+# .env 는 config/settings/base.py 의 load_dotenv() 가 파일 경로 기준으로 자동 로드
+# (SLACK_APP_TOKEN=xapp- / SLACK_BOT_TOKEN=xoxb- 를 여기서 읽음).
+ExecStart=/home/taeshkim/qa_qualitygate_portal/.venv/bin/python manage.py slack_triage_listener
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=qg-slack-triage
+
+[Install]
+WantedBy=multi-user.target

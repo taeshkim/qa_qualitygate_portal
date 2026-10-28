@@ -24,4 +24,8 @@
        class="{% if admin_active_tab == 'slack_users' %}active{% endif %}">
         <i class="fab fa-slack"></i> Slack 사용자
     </a>
+    <a href="{% url 'accounts:portal_settings' %}"
+       class="{% if admin_active_tab == 'portal_settings' %}active{% endif %}">
+        <i class="fas fa-sliders-h"></i> 포털 설정
+    </a>
 </nav>

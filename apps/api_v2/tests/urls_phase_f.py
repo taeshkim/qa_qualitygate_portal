@@ -11,4 +11,6 @@ from django.urls import include, path
 urlpatterns = [
     path("api/v2/", include("apps.api_v2.urls")),
     path("api/v2/", include("apps.api_v2.urls_suites")),
+    # API 응답의 포털 상세 링크는 실제 URL 이름으로 역참조한다.
+    path("suites/", include("apps.suites.urls")),
 ]

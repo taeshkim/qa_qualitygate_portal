@@ -1,0 +1,27 @@
+[Unit]
+Description=QA Quality Gate Portal
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=taeshkim
+Group=taeshkim
+WorkingDirectory=/home/taeshkim/qa-qg
+Environment=DJANGO_SETTINGS_MODULE=config.settings.dev
+Environment=PYTHONUNBUFFERED=1
+# Application settings load the project's .env through python-dotenv.
+# Dependency installation, code updates and migrations are deployment steps.
+ExecStart=/home/taeshkim/qa-qg/.venv/bin/python manage.py runserver 0.0.0.0:8601 --noreload
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+UMask=0027
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=qualitygate
+
+[Install]
+WantedBy=multi-user.target

@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="page-header">
-    <h1>Quality Gate 인스턴스</h1>
+    <h1>Quality Gates</h1>
     {% if user.is_admin %}
     <a href="{% url 'qualitygates:folder_register' %}" class="btn btn-primary">
         <i class="fas fa-plus"></i> 인스턴스 등록
@@ -48,7 +48,7 @@
 }
 .folder-card {
     display: block;
-    background: #fff;
+    background: var(--surface);
     border: 1px solid var(--gray-200);
     border-radius: 10px;
     padding: 20px;

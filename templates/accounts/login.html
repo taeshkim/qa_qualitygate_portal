@@ -5,7 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Quality Gate Portal</title>
     {% load static %}
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <script>
+        /* 저장된 테마(base.html 과 동일 키)를 첫 페인트 전에 적용 */
+        try { if (localStorage.getItem('qg-theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) {}
+    </script>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=20261009a">
 </head>
 <body>
     <div class="login-container">
@@ -13,18 +17,54 @@
             <h1>Quality Gate Portal</h1>
             <p class="login-subtitle">QG 운영 통합 플랫폼</p>
 
-            {% if form.errors %}
+            {% if logged_out and not error %}
+            <div class="alert alert-info" role="status">로그아웃되었습니다.</div>
+            {% endif %}
+
+            {% if error == "sso_failed" %}
+            <div class="alert alert-error">로그인을 완료하지 못했습니다. 다시 시도해 주세요.</div>
+            {% elif error == "sso_unavailable" %}
+            <div class="alert alert-error">지금은 로그인 화면을 열 수 없습니다. 잠시 후 다시 시도해 주세요.</div>
+            {% elif error == "sso_inactive" %}
+            <div class="alert alert-error">비활성화되었거나 승인 대기 중인 계정입니다. 관리자에게 문의하세요.</div>
+            {% elif error == "local_disabled" %}
+            <div class="alert alert-error">아이디/비밀번호 로그인은 사용할 수 없습니다. 사내 계정(SSO)으로 로그인해 주세요.</div>
+            {% elif form.errors %}
             <div class="alert alert-error">
                 아이디 또는 비밀번호가 올바르지 않습니다.<br>
                 <span style="font-size:0.85rem">승인 대기 중인 계정은 관리자 승인 후 로그인 가능합니다.</span>
             </div>
             {% endif %}
 
+            {% if gateway_entry_url %}
+            <a href="{{ gateway_entry_url }}{% if next %}?next={{ next|urlencode }}{% endif %}"
+               class="btn btn-primary btn-full login-sso-btn">
+                Keycloak 로그인
+            </a>
+            {% if not local_login %}
+            <p class="login-sso-help">사내 계정(Keycloak)으로 로그인합니다.<br>처음 로그인하면 계정이 자동으로 만들어집니다.</p>
+            {% endif %}
+            {% endif %}
+
+            {% for p in providers %}
+            <a href="{{ p.url }}{% if next %}?next={{ next|urlencode }}{% endif %}"
+               class="btn btn-primary btn-full login-sso-btn">
+                {{ p.label }}
+            </a>
+            {% endfor %}
+            {% if providers and not local_login %}
+            <p class="login-sso-help">사내 계정(Google Workspace)으로 로그인합니다.<br>처음 로그인하면 계정이 자동으로 만들어집니다.</p>
+            {% endif %}
+
+            {% if local_login %}
+            {% if providers %}
+            <div style="margin:18px 0 14px;text-align:center;color:var(--gray-500);font-size:0.8rem">또는 아이디/비밀번호</div>
+            {% endif %}
             <form method="post">
                 {% csrf_token %}
                 <div class="form-group">
                     <label for="id_username">Username</label>
-                    <input type="text" name="username" id="id_username" class="form-input" autofocus required>
+                    <input type="text" name="username" id="id_username" class="form-input" {% if not providers %}autofocus {% endif %}required>
                 </div>
                 <div class="form-group">
                     <label for="id_password">Password</label>
@@ -41,6 +81,11 @@
                     계정이 없으신가요? 회원가입
                 </a>
             </div>
+            {% elif not providers %}
+            <p style="text-align:center;color:var(--gray-500);font-size:0.9rem">
+                현재 사용할 수 있는 로그인 방법이 없습니다. 관리자에게 문의하세요.
+            </p>
+            {% endif %}
         </div>
     </div>
 </body>

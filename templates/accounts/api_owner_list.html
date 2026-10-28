@@ -9,6 +9,50 @@
 
 {% include "accounts/_admin_tabs.html" %}
 
+{% comment %}담당자 관리 내부 탭 — ?tab= 로 전환 (api=기본 / ui){% endcomment %}
+<nav class="event-tabs" role="tablist">
+    <a href="{% url 'accounts:api_owner_list' %}" role="tab"
+       class="event-tab-btn{% if owner_tab != 'ui' %} active{% endif %}">
+        <i class="fas fa-server"></i> API Endpoint 담당자
+    </a>
+    <a href="{% url 'accounts:api_owner_list' %}?tab=ui" role="tab"
+       class="event-tab-btn{% if owner_tab == 'ui' %} active{% endif %}">
+        <i class="fas fa-desktop"></i> UI 담당자
+    </a>
+</nav>
+
+{% if owner_tab == "ui" %}
+<div class="card">
+    <h2 class="card-title">
+        <i class="fas fa-desktop"></i> UI Test Automation 실패 알림 담당자
+    </h2>
+    <p class="text-muted" style="font-size:0.85rem;margin-top:4px;margin-bottom:10px;line-height:1.7">
+        UI Test Automation(TAP) Suite 가 <strong>실패(FAIL)</strong> 하면 Slack 실패 알림에 여기 등록된 담당자를 멘션합니다.
+        Suite·케이스 구분 없이 모든 UI 실패 알림에 동일하게 적용됩니다 (Reliability 스케줄 실행 포함).
+        <br>콤마로 여러 명 입력 (예: <code>김태식, 김도연</code>). Slack 표시명과 일치해야 멘션 동작.
+        <br><span style="font-size:0.78rem">실패 알림 발송 여부는 <a href="{% url 'accounts:notification_settings' %}">Slack 알림</a> 탭의 'UI Test Automation (TAP)' 토글을 따릅니다.</span>
+    </p>
+    <form method="post" action="{% url 'accounts:ui_owners_save' %}"
+          style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        {% csrf_token %}
+        <input type="text" name="owners" value="{{ ui_owners_text }}"
+               placeholder="예: 김태식, 김도연" maxlength="500"
+               class="form-input" style="flex:1;min-width:0;padding:6px 10px;font-size:0.9rem">
+        <button type="submit" class="btn btn-sm btn-primary">
+            <i class="fas fa-save"></i> 저장
+        </button>
+    </form>
+    {% if ui_owners_text %}
+    <p class="text-muted" style="font-size:0.78rem;margin-top:8px">
+        현재 설정: <strong>{{ ui_owners_text }}</strong>
+    </p>
+    {% else %}
+    <p style="color:var(--danger);font-size:0.82rem;margin-top:8px">
+        <i class="fas fa-exclamation-triangle"></i> 미설정 — UI 실패 알림이 담당자 멘션 없이 발송됩니다.
+    </p>
+    {% endif %}
+</div>
+{% else %}
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
         <h2 class="card-title" style="margin:0">
@@ -202,4 +246,5 @@
     </p>
     {% endif %}
 </div>
+{% endif %}
 {% endblock %}

@@ -22,7 +22,7 @@
         <div class="form-group">
             <label>게이트 배포 구성 타입</label>
             <div class="form-input"
-                 style="max-width:240px;background:#f3f4f6;color:var(--gray-700);cursor:not-allowed;display:flex;align-items:center;gap:6px">
+                 style="max-width:240px;background:var(--surface-2);color:var(--gray-700);cursor:not-allowed;display:flex;align-items:center;gap:6px">
                 <i class="fas fa-lock" style="color:#9ca3af;font-size:0.8rem"></i>
                 <span>{{ gate.get_gate_type_display }}</span>
             </div>
@@ -30,7 +30,7 @@
         </div>
 
         {% if gate.folder %}
-        <div class="alert" style="background:#eff6ff;border-left:4px solid #3b82f6;color:#1e3a8a;margin:12px 0">
+        <div class="alert" style="background:var(--info-bg);border-left:4px solid #3b82f6;color:var(--info-text);margin:12px 0">
             Jenkins 자격증명은 인스턴스
             <a href="{% url 'qualitygates:folder_detail' gate.folder.pk %}"><strong>{{ gate.folder.name }}</strong></a>
             {% if gate.subfolder %}
@@ -42,14 +42,14 @@
         {% endif %}
 
         <h3 style="margin:24px 0 12px;color:var(--gray-600)">검수대상 환경 배포 Job</h3>
-        <div style="border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;padding:14px 16px;background:#fafafa">
+        <div style="border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;padding:14px 16px;background:var(--surface-2)">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;color:var(--gray-600);font-weight:600;font-size:0.88rem">
                 <i class="fas fa-hammer" style="color:#6366f1"></i> Jenkins
             </div>
             <div class="form-group">
                 <label>인증키</label>
                 <div id="deploy_credential_display" class="form-input"
-                     style="max-width:240px;background:#f3f4f6;color:var(--gray-700);cursor:not-allowed;display:flex;align-items:center;gap:6px">
+                     style="max-width:240px;background:var(--surface-2);color:var(--gray-700);cursor:not-allowed;display:flex;align-items:center;gap:6px">
                     <i class="fas fa-lock" style="color:#9ca3af;font-size:0.8rem"></i>
                     <span data-deploy-cred-label>Dev API 키</span>
                 </div>
@@ -70,14 +70,14 @@
                 <small class="text-muted">Jenkins Job URL 또는 순수 경로 모두 가능.</small>
             </div>
         </div>
-        <div style="border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;padding:14px 16px;background:#fafafa;margin-top:12px">
+        <div style="border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;padding:14px 16px;background:var(--surface-2);margin-top:12px">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;color:var(--gray-600);font-weight:600;font-size:0.88rem">
                 <i class="fas fa-cloud" style="color:#0ea5e9"></i> Argo CD <span class="text-muted" style="font-weight:normal;font-size:0.85rem">(선택)</span>
             </div>
             <div class="form-group">
                 <label>토큰 환경</label>
                 <div class="form-input"
-                     style="max-width:240px;background:#f3f4f6;color:var(--gray-700);cursor:not-allowed;display:flex;align-items:center;gap:6px">
+                     style="max-width:240px;background:var(--surface-2);color:var(--gray-700);cursor:not-allowed;display:flex;align-items:center;gap:6px">
                     <i class="fas fa-lock" style="color:#9ca3af;font-size:0.8rem"></i>
                     <span data-argo-deploy-label>{% if gate.gate_type == "stg_prd" %}Stg{% else %}Dev{% endif %}</span>
                 </div>
@@ -93,14 +93,14 @@
         </div>
 
         <h3 style="margin:24px 0 12px;color:var(--gray-600)">검수통과 환경 배포 Job <span class="text-muted" style="font-weight:normal;font-size:0.85rem">(선택)</span></h3>
-        <div style="border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;padding:14px 16px;background:#fafafa">
+        <div style="border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;padding:14px 16px;background:var(--surface-2)">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;color:var(--gray-600);font-weight:600;font-size:0.88rem">
                 <i class="fas fa-hammer" style="color:#6366f1"></i> Jenkins
             </div>
             <div class="form-group">
                 <label>인증키</label>
                 <div id="prod_credential_display" class="form-input"
-                     style="max-width:240px;background:#f3f4f6;color:var(--gray-700);cursor:not-allowed;display:flex;align-items:center;gap:6px">
+                     style="max-width:240px;background:var(--surface-2);color:var(--gray-700);cursor:not-allowed;display:flex;align-items:center;gap:6px">
                     <i class="fas fa-lock" style="color:#9ca3af;font-size:0.8rem"></i>
                     <span data-prod-cred-label>{% if gate.gate_type == "stg_prd" %}Prod API 키{% else %}Dev API 키{% endif %}</span>
                 </div>
@@ -114,14 +114,14 @@
                 <small class="text-muted">Jenkins Job URL 또는 순수 경로.</small>
             </div>
         </div>
-        <div style="border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;padding:14px 16px;background:#fafafa;margin-top:12px">
+        <div style="border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;padding:14px 16px;background:var(--surface-2);margin-top:12px">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;color:var(--gray-600);font-weight:600;font-size:0.88rem">
                 <i class="fas fa-cloud" style="color:#0ea5e9"></i> Argo CD <span class="text-muted" style="font-weight:normal;font-size:0.85rem">(선택)</span>
             </div>
             <div class="form-group">
                 <label>토큰 환경</label>
                 <div class="form-input"
-                     style="max-width:240px;background:#f3f4f6;color:var(--gray-700);cursor:not-allowed;display:flex;align-items:center;gap:6px">
+                     style="max-width:240px;background:var(--surface-2);color:var(--gray-700);cursor:not-allowed;display:flex;align-items:center;gap:6px">
                     <i class="fas fa-lock" style="color:#9ca3af;font-size:0.8rem"></i>
                     <span data-argo-prod-label>{% if gate.gate_type == "stg_prd" %}Prd{% else %}Stg{% endif %}</span>
                 </div>

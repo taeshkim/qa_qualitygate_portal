@@ -3,6 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+      /* 테마 — 저장된 값을 첫 페인트 전에 <html> 에 적용(깜빡임 방지) + 토글 헬퍼. 기본 light. */
+      (function () {
+        try { if (localStorage.getItem('qg-theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) {}
+      })();
+      window.QGTheme = {
+        isDark: function () { return document.documentElement.getAttribute('data-theme') === 'dark'; },
+        apply: function (dark) {
+          if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+          else document.documentElement.removeAttribute('data-theme');
+          try { localStorage.setItem('qg-theme', dark ? 'dark' : 'light'); } catch (e) {}
+          this.syncBtn();
+        },
+        toggle: function () { this.apply(!this.isDark()); },
+        syncBtn: function () {
+          var dark = this.isDark();
+          var icon = document.getElementById('theme-toggle-icon');
+          var label = document.getElementById('theme-toggle-label');
+          if (icon) icon.className = dark ? 'fas fa-sun' : 'fas fa-moon';
+          if (label) label.textContent = dark ? 'Light Mode' : 'Dark Mode';
+        }
+      };
+      /* 모바일 사이드바(off-canvas 드로어) 제어 — 햄버거/오버레이 토글. */
+      window.QGNav = {
+        _sb: function () { return document.querySelector('.sidebar'); },
+        _ov: function () { return document.querySelector('.sidebar-overlay'); },
+        isOpen: function () { var s = this._sb(); return !!(s && s.classList.contains('open')); },
+        open: function () {
+          var s = this._sb(), o = this._ov();
+          if (s) s.classList.add('open');
+          if (o) o.classList.add('open');
+          document.body.classList.add('nav-open');
+        },
+        close: function () {
+          var s = this._sb(), o = this._ov();
+          if (s) s.classList.remove('open');
+          if (o) o.classList.remove('open');
+          document.body.classList.remove('nav-open');
+        },
+        toggle: function () { if (this.isOpen()) this.close(); else this.open(); }
+      };
+      document.addEventListener('DOMContentLoaded', function () {
+        /* 드로어 안의 메뉴 클릭 시 닫기 */
+        document.querySelectorAll('.sidebar .nav-menu a, .sidebar .logout-link').forEach(function (a) {
+          a.addEventListener('click', function () { QGNav.close(); });
+        });
+        /* 데스크톱 폭으로 넓어지면 드로어 상태 해제 */
+        window.addEventListener('resize', function () {
+          if (window.innerWidth > 768 && QGNav.isOpen()) QGNav.close();
+        });
+        /* ESC 로 닫기 */
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape' && QGNav.isOpen()) QGNav.close();
+        });
+      });
+    </script>
     <title>{% block title %}Quality Gate Portal{% endblock %}</title>
     {% load static %}
     <link rel="icon" type="image/svg+xml" href="{% static 'favicon.svg' %}">
@@ -10,12 +66,24 @@
     <script src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js" defer></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     {% load static %}
-    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=20260504a">
-    <script src="{% static 'js/qg_notify.js' %}?v=20260422h"></script>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=20261009a">
+    <script src="{% static 'js/qg_notify.js' %}?v=20261009a"
+            data-service-worker-url="{% url 'service_worker' %}"
+            data-service-worker-scope="{% url 'dashboard:index' %}"></script>
     {% block extra_head %}{% endblock %}
 </head>
 <body>
     <div class="layout">
+        <!-- Mobile top bar (≤768px 에서만 노출) -->
+        <header class="mobile-topbar">
+            <button type="button" class="hamburger-btn" onclick="QGNav.toggle()" aria-label="메뉴 열기">
+                <i class="fas fa-bars"></i>
+            </button>
+            <a href="{% url 'dashboard:index' %}" class="brand">QG Portal</a>
+        </header>
+        <!-- Drawer 오버레이 (드로어 열렸을 때만 보임) -->
+        <div class="sidebar-overlay" onclick="QGNav.close()"></div>
+
         <!-- Sidebar -->
         <nav class="sidebar">
             <div class="sidebar-header">
@@ -27,24 +95,38 @@
                 <li><a href="{% url 'dashboard:index' %}" class="{% if request.resolver_match.app_name == 'dashboard' %}active{% endif %}">
                     <i class="fas fa-tachometer-alt"></i> Dashboard
                 </a></li>
-                <li><a href="{% url 'qualitygates:folder_list' %}" class="{% if request.resolver_match.app_name == 'qualitygates' %}active{% endif %}">
-                    <i class="fas fa-shield-alt"></i> Quality Gate
+                {% if user.is_admin %}
+                <li><a href="{% url 'visualization:index' %}" class="{% if request.resolver_match.app_name == 'visualization' %}active{% endif %}">
+                    <i class="fas fa-road"></i> Visualization
                 </a></li>
-                <li><a href="{% url 'suites:suite_list' %}" class="{% if request.resolver_match.app_name == 'suites' and 'queue' not in request.path %}active{% endif %}">
+                {% endif %}
+                {% if portal_settings.show_quality_gate and not user.is_viewer %}
+                <li><a href="{% url 'qualitygates:folder_list' %}" class="{% if request.resolver_match.app_name == 'qualitygates' %}active{% endif %}">
+                    <i class="fas fa-shield-alt"></i> Quality Gates
+                </a></li>
+                {% endif %}
+                {% if not user.is_viewer %}
+                <li><a href="{% url 'suites:suite_list' %}" class="{% if request.resolver_match.app_name == 'suites' and 'queue' not in request.path and request.resolver_match.url_name != 'run_list' %}active{% endif %}">
                     <i class="fas fa-flask"></i> Test Suites
                 </a></li>
                 <li><a href="{% url 'robustness:test_list' %}" class="{% if request.resolver_match.app_name == 'robustness' %}active{% endif %}">
-                    <i class="fas fa-heartbeat"></i> Reliability Test
+                    <i class="fas fa-heartbeat"></i> Reliability Tests
                 </a></li>
+                {% endif %}
+                <li><a href="{% url 'suites:run_list' %}" class="{% if request.resolver_match.url_name == 'run_list' %}active{% endif %}">
+                    <i class="fas fa-list-ul"></i> Suite Runs
+                </a></li>
+                {% if not user.is_viewer %}
                 <li><a href="{% url 'suites:queue' %}" class="{% if 'queue' in request.path %}active{% endif %}">
                     <i class="fas fa-clock"></i> Queue
                 </a></li>
                 <li><a href="{% url 'activitylog:list' %}" class="{% if request.resolver_match.app_name == 'activitylog' %}active{% endif %}">
-                    <i class="fas fa-clipboard-list"></i> Log
+                    <i class="fas fa-clipboard-list"></i> Activity Log
                 </a></li>
+                {% endif %}
                 {% if user.is_admin %}
                 <li style="margin-top:24px;padding-top:12px;border-top:1px solid var(--gray-700)">
-                    <a href="{% url 'accounts:user_list' %}" class="{% if request.resolver_match.url_name == 'user_list' or request.resolver_match.url_name == 'notification_settings' or request.resolver_match.url_name == 'api_key_admin_list' or request.resolver_match.url_name == 'api_owner_list' or request.resolver_match.url_name == 'api_owner_create' or request.resolver_match.url_name == 'api_owner_edit' or request.resolver_match.url_name == 'api_owner_sync' or request.resolver_match.url_name == 'api_host_list' or request.resolver_match.url_name == 'api_host_create' or request.resolver_match.url_name == 'api_host_edit' or request.resolver_match.url_name == 'slack_users_debug' %}active{% endif %}">
+                    <a href="{% url 'accounts:user_list' %}" class="{% if request.resolver_match.url_name == 'user_list' or request.resolver_match.url_name == 'notification_settings' or request.resolver_match.url_name == 'api_key_admin_list' or request.resolver_match.url_name == 'api_owner_list' or request.resolver_match.url_name == 'api_owner_create' or request.resolver_match.url_name == 'api_owner_edit' or request.resolver_match.url_name == 'api_owner_sync' or request.resolver_match.url_name == 'api_host_list' or request.resolver_match.url_name == 'api_host_create' or request.resolver_match.url_name == 'api_host_edit' or request.resolver_match.url_name == 'slack_users_debug' or request.resolver_match.url_name == 'portal_settings' %}active{% endif %}">
                         <i class="fas fa-users-cog"></i> Admin
                     </a>
                 </li>
@@ -52,7 +134,10 @@
             </ul>
             <div class="sidebar-footer">
                 <button type="button" id="notify-toggle-btn" class="btn btn-sm btn-secondary btn-full" onclick="QGNotify.toggleNotify()" style="margin-bottom:12px">
-                    <i class="fas fa-bell-slash"></i> <span id="notify-toggle-label">알림 OFF</span>
+                    <i class="fas fa-bell-slash"></i> <span id="notify-toggle-label">Notify OFF</span>
+                </button>
+                <button type="button" id="theme-toggle-btn" class="btn btn-sm btn-secondary btn-full" onclick="QGTheme.toggle()" style="margin-bottom:12px">
+                    <i class="fas fa-moon" id="theme-toggle-icon"></i> <span id="theme-toggle-label">Dark Mode</span>
                 </button>
                 <script>
                     /* 페이지 전환 시 OFF → ON 깜빡임 방지 — DOMContentLoaded 를 기다리지 않고
@@ -60,6 +145,8 @@
                     if (window.QGNotify && typeof QGNotify.updateToggleBtn === 'function') {
                         QGNotify.updateToggleBtn();
                     }
+                    /* 테마 버튼 라벨/아이콘도 즉시 동기화 */
+                    if (window.QGTheme) QGTheme.syncBtn();
                 </script>
                 {% if user.is_authenticated %}
                 <div class="user-info">
@@ -79,10 +166,19 @@
 
         <!-- Main Content -->
         <main class="main-content">
-            <div id="qg-notify-banner" style="display:none;background:#fef3c7;border:2px solid #f59e0b;color:#78350f;padding:12px 16px;border-radius:6px;margin-bottom:12px;cursor:pointer;font-weight:600" onclick="QGNotify.requestPermission()">
-                <i class="fas fa-bell" style="margin-right:6px"></i>
-                <span id="qg-notify-banner-text">OS 알림 권한이 필요합니다. 이 배너를 클릭해서 허용하세요.</span>
-                <span style="float:right;font-weight:400;font-size:0.85em;opacity:0.8">* 팝업이 안 보이면 주소창 오른쪽 🔔 아이콘 또는 🔒 → 사이트 설정 → 알림 → 허용</span>
+            <div class="app-bg"></div>
+            <div id="qg-notify-banner" style="display:none;background:var(--warn-bg);border:2px solid #f59e0b;color:var(--warn-text);padding:12px 16px;border-radius:6px;margin-bottom:12px;cursor:pointer;font-weight:600" onclick="QGNotify.requestPermission()">
+                <!-- 내부는 flex row(align-items:center, flex-wrap:wrap) — 컨테이너 자체의 display(block/none)
+                     는 qg_notify.js updateBanner() 가 인라인으로 토글하므로 여기서는 건드리지 않는다.
+                     핵심 문구(#qg-notify-banner-text)는 항상 전체 노출, 보조 안내문(.qg-notify-hint)은
+                     자리가 부족하면 같은 줄에서 ellipsis 로 잘리거나(min-width:0 필요) 다음 줄로 내려간다. -->
+                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px 16px">
+                    <span style="display:flex;align-items:center;gap:6px;min-width:0">
+                        <i class="fas fa-bell"></i>
+                        <span id="qg-notify-banner-text">OS 알림 권한이 필요합니다. 이 배너를 클릭해서 허용하세요.</span>
+                    </span>
+                    <span class="qg-notify-hint" title="* 팝업이 안 보이면 주소창 오른쪽 🔔 아이콘 또는 🔒 → 사이트 설정 → 알림 → 허용" style="margin-left:auto;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:400;font-size:0.85em;opacity:0.8">* 팝업이 안 보이면 주소창 오른쪽 🔔 아이콘 또는 🔒 → 사이트 설정 → 알림 → 허용</span>
+                </div>
             </div>
 
             {% if messages %}
@@ -103,16 +199,16 @@
             <button type="button" onclick="QGNotify.diagnoseOS()" title="OS 알림이 실제로 OS 트레이에 도달하는지 진단" style="background:#2563eb;color:#fff;border:none;padding:10px 14px;border-radius:24px;box-shadow:0 4px 12px rgba(0,0,0,0.2);cursor:pointer;font-weight:600;font-size:0.9rem">
                 <i class="fas fa-bell"></i> OS 알림 테스트
             </button>
-            <button type="button" onclick="document.getElementById('qg-notify-guide').style.display=document.getElementById('qg-notify-guide').style.display==='none'?'block':'none'" title="OS 알림이 안 뜰 때 설정 가이드" style="background:#fff;color:#2563eb;border:1px solid #2563eb;width:36px;height:36px;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.15);cursor:pointer;font-weight:700;font-size:0.95rem">
+            <button type="button" onclick="document.getElementById('qg-notify-guide').style.display=document.getElementById('qg-notify-guide').style.display==='none'?'block':'none'" title="OS 알림이 안 뜰 때 설정 가이드" style="background:var(--surface);color:#2563eb;border:1px solid #2563eb;width:36px;height:36px;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.15);cursor:pointer;font-weight:700;font-size:0.95rem">
                 ?
             </button>
         </div>
 
-        <div id="qg-notify-guide" style="display:none;background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:14px 16px;max-width:380px;max-height:500px;overflow-y:auto;font-size:0.82rem;line-height:1.55;box-shadow:0 4px 12px rgba(0,0,0,0.15)">
-            <div style="font-weight:700;font-size:0.95rem;margin-bottom:8px;color:#111">🔔 OS 알림이 안 뜰 때 체크리스트</div>
+        <div id="qg-notify-guide" style="display:none;background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;padding:14px 16px;max-width:380px;max-height:500px;overflow-y:auto;font-size:0.82rem;line-height:1.55;box-shadow:0 4px 12px rgba(0,0,0,0.15)">
+            <div style="font-weight:700;font-size:0.95rem;margin-bottom:8px;color:var(--text)">🔔 OS 알림이 안 뜰 때 체크리스트</div>
             <div style="color:#6b7280;font-size:0.75rem;margin-bottom:10px">테스트 버튼을 눌렀을 때 토스트만 뜨고 OS 알림이 안 보인다면 아래 3단계 확인.</div>
 
-            <div style="font-weight:700;margin-top:10px;color:#1e3a8a">🍎 macOS</div>
+            <div style="font-weight:700;margin-top:10px;color:var(--info-text)">🍎 macOS</div>
             <ol style="padding-left:20px;margin:6px 0">
                 <li><b>시스템 설정 → 알림 → Google Chrome</b>
                     <ul style="padding-left:16px;margin:4px 0">
@@ -131,7 +227,7 @@
                 <li>배너는 화면 <b>우측 상단</b>에 뜸 (하단 아님!)</li>
             </ol>
 
-            <div style="font-weight:700;margin-top:12px;color:#1e3a8a">🪟 Windows</div>
+            <div style="font-weight:700;margin-top:12px;color:var(--info-text)">🪟 Windows</div>
             <ol style="padding-left:20px;margin:6px 0">
                 <li><b>설정 → 시스템 → 알림 → Google Chrome</b>
                     <ul style="padding-left:16px;margin:4px 0">
@@ -149,23 +245,23 @@
                 <li><b>전체화면(F11) 상태면 숨김</b> — 설정에서 "전체화면 모드에서 알림 숨기기" OFF</li>
             </ol>
 
-            <div style="font-weight:700;margin-top:12px;color:#1e3a8a">🌐 공통 (브라우저 쪽)</div>
+            <div style="font-weight:700;margin-top:12px;color:var(--info-text)">🌐 공통 (브라우저 쪽)</div>
             <ol style="padding-left:20px;margin:6px 0">
                 <li>주소창 왼쪽 <b>🔒 자물쇠 → 사이트 설정 → 알림 → 허용</b></li>
                 <li><b>chrome://settings/content/notifications</b> → "조용한 메시지 사용" OFF</li>
                 <li>사이트 상단에 노란 배너가 보이면 클릭해서 권한 요청</li>
             </ol>
 
-            <div style="margin-top:12px;padding:8px 10px;background:#fef3c7;border-radius:6px;font-size:0.78rem;color:#78350f">
+            <div style="margin-top:12px;padding:8px 10px;background:var(--warn-bg);border-radius:6px;font-size:0.78rem;color:var(--warn-text)">
                 <b>⚠ 참고</b> — Chrome 탭 자체를 완전히 닫으면 알림 안 옴 (JS가 안 돌아서). 백그라운드 탭으로 두거나 최소화는 OK.
             </div>
 
             <div style="margin-top:10px;text-align:right">
-                <button type="button" onclick="document.getElementById('qg-notify-guide').style.display='none'" style="background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:0.8rem">닫기</button>
+                <button type="button" onclick="document.getElementById('qg-notify-guide').style.display='none'" style="background:var(--surface-2);color:var(--text);border:1px solid var(--border-strong);padding:4px 12px;border-radius:6px;cursor:pointer;font-size:0.8rem">닫기</button>
             </div>
         </div>
 
-        <div id="qg-diag-result" style="display:none;background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:10px 12px;max-width:360px;max-height:400px;overflow-y:auto;font-size:0.78rem;line-height:1.5;box-shadow:0 4px 12px rgba(0,0,0,0.15);white-space:pre-line;font-family:ui-monospace,monospace"></div>
+        <div id="qg-diag-result" style="display:none;background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;padding:10px 12px;max-width:360px;max-height:400px;overflow-y:auto;font-size:0.78rem;line-height:1.5;box-shadow:0 4px 12px rgba(0,0,0,0.15);white-space:pre-line;font-family:ui-monospace,monospace"></div>
     </div>
 
     {% block extra_js %}{% endblock %}

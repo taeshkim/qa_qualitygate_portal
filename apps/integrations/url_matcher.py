@@ -279,11 +279,19 @@ def find_endpoint_owner(method: str, url: str) -> Optional[ApiEndpointOwner]:
     target_path = _normalize_path(path)
 
     index = _get_owner_index()
-    pool = index.get(method_n, [])
-    if not pool:
-        return None
 
+    # 1) 정확한 메서드 우선.
+    pool = index.get(method_n, [])
     candidates = [c for c in pool if c["pattern"].fullmatch(target_path)]
+
+    # 2) 메서드 무관 fallback — 정확한 메서드 매칭이 없을 때만, 같은 path 를 *다른*
+    #    메서드로 등록한 owner 라도 찾는다. 시트가 한 메서드(예: GET)로만 등록해 둔
+    #    endpoint 를 다른 메서드(예: POST)로 호출해 매칭이 실패하던 케이스 방어.
+    #    (정확한 메서드 매칭이 있으면 위에서 이미 잡히므로 메서드별 구분은 유지된다.)
+    if not candidates:
+        for m_pool in index.values():
+            candidates.extend(c for c in m_pool if c["pattern"].fullmatch(target_path))
+
     if not candidates:
         return None
 
@@ -323,6 +331,13 @@ _METHOD_RE = re.compile(
 )
 _STATUS_RE = re.compile(
     r"Status(?:\s*Code)?\s*:\s*(\d{3})", re.IGNORECASE
+)
+
+# 사내 자동화 스크립트가 실패한 step 의 URL 을 단일 마커(`ERROR_URL:`)로 표기한 라인.
+# 이 마커가 로그에 하나라도 있으면 그것만 권위 소스로 쓴다 (로그 전반의 변수/성공/
+# host-only URL 노이즈 배제). 단어 경계 보장: `XERROR_URL` 같은 토큰 안에서는 매칭 안 함.
+_ERROR_URL_RE = re.compile(
+    r"(?<![A-Za-z_])ERROR_URL\s*:\s*(https?://\S+)", re.IGNORECASE
 )
 
 
@@ -370,10 +385,16 @@ def _extract_from_block(block: str) -> list[tuple[str, Optional[str], Optional[i
 
 
 def extract_urls(text: str) -> list[MatchedUrl]:
-    """Error Log 텍스트에서 URL 라인을 추출하고 step 블록의 Method/Status 와 묶는다.
+    """Error Log 텍스트에서 실패 URL 을 추출하고 owner 를 매칭한다.
 
-    - 같은 (method, url) 은 dedupe 하면서 count 증가.
-    - 같은 url 의 status 가 여러 번 나오면 마지막 값 사용.
+    우선순위:
+      1. **`ERROR_URL:` 마커** — 사내 자동화 스크립트가 실패 step 의 URL 을 단일·유니크
+         하게 표기한 라인. 로그에 하나라도 있으면 *그것만* 권위 소스로 쓴다 (로그 전반의
+         변수/성공/host-only URL 노이즈 배제). method/status 는 같은 로그의 상세 블록
+         (`URL:`+`Method:`+`Status:`) 에서 같은 URL 을 찾아 보강. count = 마커 출현 횟수.
+      2. 마커가 전혀 없으면(구 포맷 fallback) `URL:` 라벨 + 맨몸 URL 을 블록 단위로 추출
+         하고 같은 (method, url) 을 dedupe 하며 count 증가 — 기존 동작 그대로.
+
     - 결과는 count 내림차순 → url 사전순.
     - 각 MatchedUrl 에 owner 매칭 결과도 채워준다 (method 가 없으면 GET 가정).
     """
@@ -385,7 +406,46 @@ def extract_urls(text: str) -> list[MatchedUrl]:
     if not blocks:
         blocks = [text]
 
-    # key = (method_or_None, url) → record
+    # 1) 새 포맷 — `ERROR_URL:` 마커가 있으면 그것만 권위 소스로.
+    error_url_counts: dict[str, int] = {}
+    for em in _ERROR_URL_RE.finditer(text):
+        u = _clean_url(em.group(1))
+        if u:
+            error_url_counts[u] = error_url_counts.get(u, 0) + 1
+
+    if error_url_counts:
+        # method/status 는 상세 블록에서 같은 URL 을 찾아 보강 (없으면 GET/None).
+        meta: dict[str, dict] = {}
+        for block in blocks:
+            if not block or not block.strip():
+                continue
+            for url, method, status in _extract_from_block(block):
+                if url not in error_url_counts:
+                    continue
+                entry = meta.setdefault(url, {"method": None, "status": None})
+                if method and not entry["method"]:
+                    entry["method"] = method
+                if status is not None:
+                    entry["status"] = status
+
+        results: list[MatchedUrl] = []
+        for url, count in error_url_counts.items():
+            info = meta.get(url, {})
+            method = info.get("method")
+            owner = find_endpoint_owner(method or "GET", url)
+            results.append(
+                MatchedUrl(
+                    url=url,
+                    method=method,
+                    count=count,
+                    owner=owner,
+                    status_code=info.get("status"),
+                )
+            )
+        results.sort(key=lambda r: (-r.count, r.url))
+        return results
+
+    # 2) 구 포맷 fallback — key = (method_or_None, url) → record
     records: dict[tuple[Optional[str], str], dict] = {}
 
     for block in blocks:

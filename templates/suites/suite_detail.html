@@ -81,6 +81,10 @@
                         <th>#</th>
                         <th>Job Name</th>
                         <th>Jenkins Status</th>
+                        <th title="잡을 트리거하기 전 직전 트리거로부터 둘 지연(초). 병렬 실행 시 잡들이 이 간격으로 엇갈려 시작·완료됩니다. 값 수정은 우측 상단 Edit.">
+                            실행 지연
+                            {% if user.is_admin %}<a href="{% url 'suites:suite_edit' suite.pk %}" title="실행 지연 시간 수정"><i class="fas fa-pen" style="font-size:0.75rem;margin-left:3px"></i></a>{% endif %}
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
@@ -102,6 +106,7 @@
                             <span class="status-badge status-pass">Idle</span>
                             {% endif %}
                         </td>
+                        <td>{{ item.job.trigger_delay_seconds }}초</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -118,9 +123,55 @@
     {% endif %}
 </div>
 
+{% if user.is_admin and not suite.is_external %}
+<!-- GWT 토큰 (내부 Jenkins 트리거) -->
+<div class="card">
+    <h2 class="card-title">GWT 토큰 — 내부 Jenkins 트리거</h2>
+    <p class="text-muted" style="font-size:0.85rem;margin-bottom:10px">
+        내부 Jenkins 는 SSO 때문에 API 토큰 대신 <strong>Generic Webhook Trigger</strong> 토큰으로 워커를 트리거합니다.
+        아래 각 워커의 토큰을 그 워커 <strong>Jenkins → Configure → Build Triggers → Generic Webhook Trigger → Token</strong> 에
+        <strong>동일하게</strong> 넣으세요. (워커마다 고유 토큰이어야 순차 트리거가 됩니다.)
+    </p>
+    <form method="post" action="{% url 'suites:gwt_tokens_generate' suite.pk %}" style="margin-bottom:10px">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-secondary"><i class="fas fa-key"></i> 토큰 없는 워커 전체 발급</button>
+    </form>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead><tr><th>Job Name</th><th>GWT 토큰 (Jenkins 에 복붙)</th><th style="width:90px"></th></tr></thead>
+            <tbody>
+                {% for item in job_status_list %}
+                <tr>
+                    <td><strong>{{ item.job.job_name }}</strong></td>
+                    <td>
+                        {% if item.job.gwt_token %}
+                        <code class="mono" style="user-select:all;font-size:0.8rem">{{ item.job.gwt_token }}</code>
+                        <button type="button" class="btn btn-sm btn-secondary" title="복사"
+                                onclick="navigator.clipboard.writeText('{{ item.job.gwt_token }}');var b=event.currentTarget;var t=b.innerHTML;b.innerHTML='<i class=\'fas fa-check\'></i>';setTimeout(function(){b.innerHTML=t;},1200);">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        {% else %}
+                        <span class="text-muted">미발급</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="post" action="{% url 'suites:gwt_token_regen' item.job.pk %}" style="margin:0"
+                              {% if item.job.gwt_token %}onsubmit="return confirm('재발급하면 Jenkins 워커의 GWT Token 도 새 값으로 바꿔야 합니다. 계속할까요?');"{% endif %}>
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-secondary">{% if item.job.gwt_token %}재발급{% else %}발급{% endif %}</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
 <!-- Run History -->
 <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <h2 class="card-title" style="margin:0">실행 이력</h2>
         {% if user.is_admin and runs %}
         <form method="post" action="{% url 'suites:runs_clear' suite.pk %}" style="margin:0"
@@ -136,6 +187,7 @@
         <table class="table">
             <thead>
                 <tr>
+                    <th>#</th>
                     <th>Started</th>
                     <th>Job</th>
                     <th>Status</th>
@@ -147,6 +199,13 @@
             <tbody>
                 {% for run in runs %}
                 <tr>
+                    <td>
+                        {% if run.seq_no %}
+                        <span class="text-muted mono" style="font-size:0.85em">#{{ run.seq_no }}</span>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
                     <td>{{ run.started_at|date:"m/d H:i:s" }}</td>
                     <td>
                         {% for jr in run.job_runs.all %}{{ jr.job.job_name }}{% endfor %}
@@ -192,7 +251,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="text-center text-muted">실행 이력이 없습니다.</td>
+                    <td colspan="7" class="text-center text-muted">실행 이력이 없습니다.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -207,6 +266,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var form = document.getElementById('run-form');
     var btn = document.getElementById('run-btn');
     var hint = document.getElementById('no-select-hint');
+    if (!form) return;  /* Viewer 등 실행 폼이 렌더되지 않는 권한에서는 스킵 (NPE 방지) */
     var radios = form.querySelectorAll('input[name="job_id"]');
 
     radios.forEach(function(radio) {

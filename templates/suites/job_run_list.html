@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Job 결과 목록 - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Job 결과 목록</h1>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <a href="{% url 'dashboard:index' %}" class="btn btn-secondary">
+            <i class="fas fa-chart-line"></i> 대시보드
+        </a>
+        <a href="{% url 'suites:run_list' %}" class="btn btn-secondary">
+            <i class="fas fa-list-ul"></i> Suite Runs
+        </a>
+    </div>
+</div>
+
+<p class="text-muted" style="margin:-8px 0 16px">
+    대시보드 <strong>결과 분포 도넛</strong>의 드릴다운입니다 — 최근 <strong>14일</strong> 완료 Suite Run 의
+    <strong>Job(worker) 단위</strong> 결과(최신 200건). 장애 = 실패 중 Skip 분류 아닌 것(미분류 포함).
+    중단(ABORTED)은 장애로 세지 않습니다(사람이 Failure 로 확정한 경우만 장애).
+</p>
+
+<form method="get" class="card" style="padding:12px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px">
+    <div>
+        <label class="text-muted" style="font-size:.8rem;display:block;margin-bottom:2px">Suite</label>
+        <select name="suite" class="form-input">
+            <option value="">전체</option>
+            {% for s in suites %}
+            <option value="{{ s.pk }}" {% if f_suite == s.pk|stringformat:'s' %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="text-muted" style="font-size:.8rem;display:block;margin-bottom:2px">결과</label>
+        <select name="result" class="form-input">
+            <option value="">전체</option>
+            <option value="success" {% if f_result == 'success' %}selected{% endif %}>Pass</option>
+            <option value="failure" {% if f_result == 'failure' %}selected{% endif %}>Failure (장애)</option>
+            <option value="skip" {% if f_result == 'skip' %}selected{% endif %}>Skip</option>
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> 필터</button>
+</form>
+
+<div class="card">
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Suite</th>
+                    <th>Run</th>
+                    <th>Job (worker)</th>
+                    <th>결과</th>
+                    <th>시각</th>
+                    <th>로그</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for jr in job_runs %}
+                <tr>
+                    <td><strong>{{ jr.suite_run.suite.name }}</strong></td>
+                    <td>
+                        {% if jr.suite_run.seq_no %}
+                        <a href="{% url 'suites:run_detail' jr.suite_run.pk %}" class="mono" style="font-size:0.85em;text-decoration:none">
+                            <span style="color:var(--gray-600)">{{ jr.suite_run.suite.short_label }}</span> · #{{ jr.suite_run.seq_no }}
+                        </a>
+                        {% else %}
+                        <a href="{% url 'suites:run_detail' jr.suite_run.pk %}" class="text-muted">Detail</a>
+                        {% endif %}
+                    </td>
+                    <td class="mono" style="font-size:0.9em">{{ jr.job.job_name }}</td>
+                    <td>
+                        {% if jr.result_label == 'Pass' %}
+                        <span class="status-badge status-pass">PASS</span>
+                        {% elif jr.result_label == 'Failure' %}
+                        <span class="status-badge status-fail">🔴 FAILURE</span>
+                        {% elif jr.result_label == 'Skip' %}
+                        <span class="status-badge status-na" title="자동화 판정 오류 의심 및 자동화 코드 이슈 추정">⏭️ SKIP</span>
+                        {% elif jr.result_label == 'Aborted' %}
+                        <span class="status-badge status-na" title="중단(ABORTED) — 스케줄 정지/취소 등. 장애로 집계하지 않으며 판정 대상 아님">ABORTED</span>
+                        {% else %}
+                        <span class="status-badge status-fail" title="미분류 — 판정 대기">FAIL</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ jr.completed_at|default:jr.started_at|date:"m-d H:i" }}</td>
+                    <td>
+                        {% if jr.is_failure_status %}
+                        <a href="{% url 'suites:job_run_error_log' jr.pk %}" class="btn btn-sm btn-secondary" title="에러 로그 상세">
+                            <i class="fas fa-magnifying-glass"></i>
+                        </a>
+                        {% else %}
+                        <a href="{% url 'suites:job_run_console' jr.pk %}" class="btn btn-sm btn-secondary" title="콘솔 로그">
+                            <i class="fas fa-terminal"></i>
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-muted" style="text-align:center;padding:28px">표시할 Job 결과가 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

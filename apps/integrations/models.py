@@ -216,6 +216,48 @@ class FallbackOwners(models.Model):
         return [n.strip() for n in self.owners.split(",") if n.strip()]
 
 
+class UiAutomationOwners(models.Model):
+    """UI Test Automation(TAP) 실패 Slack 알림 담당자 (singleton).
+
+    TAP 케이스는 API URL 매칭 개념 밖이라 `ApiEndpointOwner` 매칭이 성립하지
+    않는다 — Suite/케이스 구분 없이 UI 실패 알림 전체에 이 담당자들을 멘션한다.
+    콤마 다중값 (`"김태식, 김도연"`), 발송 시 `slack_users.find_user_id_by_name`
+    자동 매칭으로 `<@U0XXX>` 멘션 (매칭 실패는 `@이름` plain text).
+
+    singleton — get_solo() 으로 단일 row 보장.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    owners = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name="UI 알림 담당자",
+        help_text="콤마로 구분된 담당자 이름 (예: 김태식, 김도연). Slack 표시명과 일치해야 자동 멘션됨.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "integrations_ui_automation_owners"
+        verbose_name = "UI 자동화 알림 담당자"
+        verbose_name_plural = "UI 자동화 알림 담당자"
+
+    def __str__(self):
+        return self.owners or "(미설정)"
+
+    @classmethod
+    def get_solo(cls) -> "UiAutomationOwners":
+        obj = cls.objects.first()
+        if obj is None:
+            obj = cls.objects.create(owners="")
+        return obj
+
+    def names(self) -> list[str]:
+        """콤마 다중값 → 이름 리스트 (trim, 빈 토큰 제거)."""
+        if not self.owners:
+            return []
+        return [n.strip() for n in self.owners.split(",") if n.strip()]
+
+
 class OwnerSyncSettings(models.Model):
     """담당자 마스터 Google Sheets 자동 동기화 주기 설정 (singleton).
 

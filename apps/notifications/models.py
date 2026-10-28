@@ -51,6 +51,11 @@ class SlackNotificationSettings(models.Model):
     notify_suite_run_failed = models.BooleanField(default=True, verbose_name="Suite Run FAIL (단독)")
 
     # 공통 에러
+    # UI Test Automation (TAP) — 단독/스케줄 공통
+    notify_tap_run_started = models.BooleanField(default=False, verbose_name="UI Suite 실행 시작")
+    notify_tap_run_passed = models.BooleanField(default=False, verbose_name="UI Suite PASS")
+    notify_tap_run_failed = models.BooleanField(default=True, verbose_name="UI Suite FAIL")
+
     notify_argocd_failed = models.BooleanField(default=True, verbose_name="Argo CD Sync 실패")
 
     updated_at = models.DateTimeField(auto_now=True)

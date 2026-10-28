@@ -9,6 +9,7 @@ PRD: prd_api.md §5, §6.4. Phase F-2..3.
 
 from __future__ import annotations
 
+from django.urls import reverse
 from rest_framework import serializers
 
 from apps.suites.models import TestSuiteJobRun, TestSuiteRun
@@ -42,15 +43,15 @@ def _job_brief(job):
 
 
 def _job_run_console_url(job_run_id) -> str:
-    return f"/api/v2/suite-job-runs/{job_run_id}/console/"
+    return reverse("api_v2:api_v2_suites:suite_job_run_console", kwargs={"pk": job_run_id})
 
 
 def _suite_run_self_url(suite_run_id) -> str:
-    return f"/api/v2/suite-runs/{suite_run_id}/"
+    return reverse("api_v2:api_v2_suites:suite_run_detail", kwargs={"pk": suite_run_id})
 
 
 def _suite_run_detail_url(suite_run_id) -> str:
-    return f"/suites/runs/{suite_run_id}/"
+    return reverse("suites:run_detail", kwargs={"pk": suite_run_id})
 
 
 # ----------------------------------------------------------------------------
@@ -64,6 +65,7 @@ class TestSuiteJobRunSerializer(serializers.Serializer):
     suite_run_id = serializers.SerializerMethodField()
     job = serializers.SerializerMethodField()
     status = serializers.CharField()
+    result = serializers.SerializerMethodField()
     build_number = serializers.SerializerMethodField()
     build_url = serializers.SerializerMethodField()
     started_at = serializers.DateTimeField()
@@ -78,6 +80,9 @@ class TestSuiteJobRunSerializer(serializers.Serializer):
 
     def get_job(self, obj: TestSuiteJobRun):
         return _job_brief(obj.job)
+
+    def get_result(self, obj: TestSuiteJobRun):
+        return _phase.result_for_job_run(obj.status)
 
     def get_build_number(self, obj: TestSuiteJobRun):
         return obj.jenkins_build_number
@@ -94,8 +99,11 @@ class TestSuiteRunSummarySerializer(serializers.Serializer):
 
     id = serializers.SerializerMethodField()
     suite = serializers.SerializerMethodField()
+    seq_no = serializers.IntegerField()
     status = serializers.CharField()
     phase = serializers.SerializerMethodField()
+    result = serializers.SerializerMethodField()
+    is_terminal = serializers.SerializerMethodField()
     total_jobs = serializers.IntegerField()
     passed_jobs = serializers.IntegerField()
     failed_jobs = serializers.IntegerField()
@@ -117,6 +125,16 @@ class TestSuiteRunSummarySerializer(serializers.Serializer):
             passed_jobs=obj.passed_jobs or 0,
             failed_jobs=obj.failed_jobs or 0,
         )
+
+    def get_result(self, obj: TestSuiteRun):
+        return _phase.result_for_suite_run(
+            obj.status,
+            passed_jobs=obj.passed_jobs or 0,
+            failed_jobs=obj.failed_jobs or 0,
+        )
+
+    def get_is_terminal(self, obj: TestSuiteRun) -> bool:
+        return obj.status == TestSuiteRun.Status.COMPLETED
 
     def get_triggered_by(self, obj: TestSuiteRun):
         return _user_brief(obj.triggered_by)

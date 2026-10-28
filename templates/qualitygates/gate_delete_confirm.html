@@ -12,7 +12,7 @@
         <strong>{{ gate.name }}</strong> Quality Gate를 삭제하시겠습니까?<br>
         <span class="text-muted">모든 실행 이력이 함께 삭제됩니다.</span>
     </p>
-    <form method="post" style="display:flex;gap:8px">
+    <form method="post" style="display:flex;gap:8px;flex-wrap:wrap">
         {% csrf_token %}
         <button type="submit" class="btn btn-danger">삭제</button>
         <a href="{% url 'qualitygates:gate_detail' gate.pk %}" class="btn btn-secondary">취소</a>

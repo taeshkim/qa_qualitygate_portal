@@ -14,7 +14,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -25,13 +25,20 @@ from .forms import (
     ApiEndpointOwnerForm,
     ApiHostMappingForm,
     FallbackOwnersForm,
+    UiAutomationOwnersForm,
 )
 from .google_sheets import (
     GoogleSheetSyncError,
     get_service_account_email,
     get_spreadsheet_id,
 )
-from .models import ApiEndpointOwner, ApiHostMapping, FallbackOwners, OwnerSyncSettings
+from .models import (
+    ApiEndpointOwner,
+    ApiHostMapping,
+    FallbackOwners,
+    OwnerSyncSettings,
+    UiAutomationOwners,
+)
 from .services import sync_owners_from_google_sheet
 
 
@@ -63,7 +70,23 @@ def _require_admin(user):
 
 @login_required
 def api_owner_list(request):
+    """담당자 관리 화면 — 내부 탭 2개 (`?tab=` 로 전환).
+
+    - `api` (기본): API Endpoint 담당자 매핑 + 자동 동기화 주기 + 대체 담당자
+    - `ui`: UI Test Automation(TAP) 실패 Slack 알림 담당자 (구분 없이 통 설정)
+    """
     _require_admin(request.user)
+
+    if request.GET.get("tab") == "ui":
+        return render(
+            request,
+            "accounts/api_owner_list.html",
+            {
+                "admin_active_tab": "api_owners",
+                "owner_tab": "ui",
+                "ui_owners_text": UiAutomationOwners.get_solo().owners,
+            },
+        )
 
     qs = ApiEndpointOwner.objects.all()
 
@@ -132,6 +155,7 @@ def api_owner_list(request):
             "mapped_apps": mapped_apps,
             "total_count": total_count,
             "admin_active_tab": "api_owners",
+            "owner_tab": "api",
             # echo back filter values
             "filter_q": q,
             "filter_repo": repo,
@@ -153,6 +177,9 @@ def api_owner_list(request):
 def api_owner_create(request):
     _require_admin(request.user)
 
+    # Error Log 화면 모달에서 fetch 로 호출되면 JSON 으로 응답 (페이지 이동 없이 등록).
+    is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest"
+
     prefill_host = ""
     if request.method == "POST":
         form = ApiEndpointOwnerForm(request.POST)
@@ -162,6 +189,9 @@ def api_owner_create(request):
             obj.save()
             from .url_matcher import invalidate_match_cache
             invalidate_match_cache()
+            # Google Sheet 역방향 기록 (비동기·best-effort, opt-in). 등록 흐름엔 영향 없음.
+            from .services import writeback_owner_to_sheet_async
+            writeback_owner_to_sheet_async(obj)
             ActivityLog.log(
                 user=request.user,
                 action=ActivityLog.Action.API_OWNER_CREATED,
@@ -170,8 +200,16 @@ def api_owner_create(request):
                 target_name=f"{obj.method} {obj.endpoint}",
                 detail=f"repo={obj.repo}",
             )
+            if is_ajax:
+                return JsonResponse(
+                    {"ok": True, "id": str(obj.id), "label": f"{obj.method} {obj.endpoint}"}
+                )
             messages.success(request, f"담당자 매핑을 추가했습니다: {obj.method} {obj.endpoint}")
             return redirect("accounts:api_owner_list")
+        if is_ajax:
+            return JsonResponse(
+                {"ok": False, "errors": form.errors.get_json_data()}, status=400
+            )
     else:
         initial = {}
         # Error Log 의 "+ 등록" 동선에서 prefill — improvement.md §6.3
@@ -500,6 +538,31 @@ def fallback_owners_save(request):
     else:
         messages.error(request, f"저장 실패: {form.errors}")
     return redirect("accounts:api_owner_list")
+
+
+@login_required
+@require_POST
+def ui_owners_save(request):
+    """담당자 관리 > UI 탭의 UI Test Automation(TAP) 실패 알림 담당자 저장."""
+    _require_admin(request.user)
+    instance = UiAutomationOwners.get_solo()
+    form = UiAutomationOwnersForm(request.POST, instance=instance)
+    if form.is_valid():
+        saved = form.save()
+        ActivityLog.log(
+            user=request.user,
+            action=ActivityLog.Action.UPDATE,
+            target_type=ActivityLog.TargetType.API_ENDPOINT_OWNER,
+            target=saved,
+            target_name="UI 알림 담당자",
+            detail=f"owners={saved.owners}",
+        )
+        messages.success(
+            request, f"UI 알림 담당자를 저장했습니다: {saved.owners or '(미설정)'}"
+        )
+    else:
+        messages.error(request, f"저장 실패: {form.errors}")
+    return redirect(f"{reverse('accounts:api_owner_list')}?tab=ui")
 
 
 @login_required

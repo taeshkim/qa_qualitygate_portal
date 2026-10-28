@@ -1,0 +1,131 @@
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <h2 class="card-title" style="display:flex;align-items:center;gap:8px;margin:0">
+        UI Test Automation (TAP)
+        {% if tap_any_active %}
+        <span class="text-muted" style="font-size:0.8rem;font-weight:normal">(10초마다 자동 갱신)</span>
+        {% endif %}
+    </h2>
+</div>
+
+<div class="card">
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Suite 명</th>
+                    <th>프로젝트</th>
+                    <th>케이스 수</th>
+                    <th>담당자</th>
+                    <th>마지막 실행</th>
+                    <th>진행</th>
+                    <th style="min-width:200px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for suite in tap_suites %}
+                {% with run=suite.latest_run %}
+                <tr>
+                    <td><strong>{{ suite.name }}</strong></td>
+                    <td class="text-muted" style="font-size:0.85rem">{{ suite.project_name|default:"-" }}</td>
+                    <td>{{ suite.case_count }}</td>
+                    <td>{{ suite.owner_display|default:"-" }}</td>
+                    <td>
+                        {% if run %}
+                        {% if run.status == "running" %}
+                        <span class="status-badge status-running">{{ run.result_label }}</span>
+                        {% elif run.status == "queued" or run.status == "pending" %}
+                        <span class="status-badge status-na">{{ run.result_label }}</span>
+                        {% elif run.status == "stopped" %}
+                        <span class="status-badge status-na" title="중단(Aborted) — 장애로 집계하지 않음">{{ run.result_label }}</span>
+                        {% elif run.status == "error" or run.failed > 0 %}
+                        <span class="status-badge status-fail">{{ run.result_label }}</span>
+                        {% else %}
+                        <span class="status-badge status-pass">{{ run.result_label }}</span>
+                        {% endif %}
+                        <div class="text-muted" style="font-size:0.72rem;margin-top:3px">{{ run.started_at|date:"m/d H:i:s" }}</div>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if run and run.is_active %}
+                        <div style="min-width:120px">
+                            <div style="background:var(--gray-200);border-radius:8px;height:14px;overflow:hidden">
+                                <div style="background:var(--info);width:{{ run.progress_percent }}%;height:100%;min-width:2px"></div>
+                            </div>
+                            <div class="text-muted" style="font-size:0.72rem;margin-top:2px">{{ run.completed_cases }}/{{ run.total_cases }} ({{ run.progress_percent }}%)</div>
+                        </div>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+                        {% if run and run.is_active %}
+                            {% if user.can_write %}
+                            <form method="post" action="{% url 'suites:tap_run_cancel' run.pk %}" style="margin:0"
+                                  onsubmit="return confirm('실행 중인 \'{{ suite.name }}\' 테스트를 취소할까요?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-danger" title="실행 취소">
+                                    <i class="fas fa-stop"></i> Cancel
+                                </button>
+                            </form>
+                            {% endif %}
+                        {% else %}
+                            {% if user.can_write %}
+                            <form method="post" action="{% url 'suites:tap_suite_run' suite.pk %}" style="margin:0"
+                                  onsubmit="return confirm('\'{{ suite.name }}\' UI 테스트를 실행할까요? (케이스 {{ suite.case_count }}개)');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-primary" title="TAP 실행">
+                                    <i class="fas fa-play"></i> Run
+                                </button>
+                            </form>
+                            {% endif %}
+                        {% endif %}
+                        {% if user.is_admin %}
+                        <a href="{% url 'suites:tap_suite_edit' suite.pk %}" class="btn btn-sm btn-secondary"
+                           title="재시도 횟수 설정">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                        {% endif %}
+                        {% if run %}
+                        <a href="{% url 'suites:tap_run_detail' run.pk %}" class="btn btn-sm btn-secondary" title="실행 상세">Detail</a>
+                        {% endif %}
+                        {% if run.tap_url %}
+                        <a href="{{ run.tap_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary" title="TAP 에서 보기">
+                            <i class="fas fa-external-link-alt"></i>
+                        </a>
+                        {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endwith %}
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted">등록된 UI 자동화 Suite 가 없습니다. TAP 에서 동기화될 때까지 잠시 기다려주세요.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:10px 4px 2px;font-size:0.78rem" class="text-muted">
+        <span>
+            {% if tap_synced_at %}
+            마지막 싱크 {{ tap_synced_at|date:"Y-m-d H:i:s" }}
+            {% else %}
+            아직 싱크되지 않았습니다.
+            {% endif %}
+        </span>
+        <span>TAP 에서 1분마다 자동 싱크</span>
+    </div>
+</div>
+
+{% if not tap_any_active %}
+<script>
+    // 진행 중인 실행이 없으면 폴링 중지 (불필요한 요청 방지)
+    (function () {
+        var el = document.getElementById('tap-suite-table');
+        if (el) { el.removeAttribute('hx-get'); el.removeAttribute('hx-trigger'); }
+    })();
+</script>
+{% endif %}

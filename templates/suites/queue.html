@@ -5,7 +5,7 @@
 {% block content %}
 <div class="page-header">
     <h1>Execution Queue</h1>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
         {% if queue_data and user.can_write %}
         <form method="post" action="{% url 'suites:queue_stop_all' %}"
               onsubmit="return confirm('현재 실행 중인 모든 Reliability 스케줄과 Suite Run / Jenkins 빌드를 강제 중단합니다. 계속할까요?');">
@@ -24,7 +24,7 @@
 {% if queue_data %}
 {% for item in queue_data %}
 <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <h2 class="card-title" style="margin-bottom:0">
             <a href="{% url 'suites:run_detail' item.run.pk %}">{{ item.run.suite.name }}</a>
         </h2>
@@ -59,14 +59,17 @@
                         <span class="status-badge status-running">Running</span>
                         {% elif jr.status == "queued" %}
                         <span class="status-badge status-running">Queued</span>
+                        {% elif jr.status == "waiting" %}
+                        <span class="status-badge status-na" title="실행 지연 대기 — 설정된 지연시간 경과 후 자동 실행">지연 대기</span>
                         {% else %}
                         <span class="status-badge status-na">Waiting</span>
                         {% endif %}
                     </td>
                     <td>
-                        {% if jr.stages_json %}
+                        {% if jr.display_stages_json %}
                         <div class="stage-pipeline">
-                            {% for stage in jr.stages_json %}
+                            {# dot 은 카운트와 동일하게 display_stages_json(NOT_EXECUTED 제외) 순회 — 동그라미 갯수 = Y 일치 #}
+                            {% for stage in jr.display_stages_json %}
                             <span class="stage-dot stage-{{ stage.status|lower }}"
                                   title="{{ forloop.counter }}. {{ stage.name }}"></span>
                             {% endfor %}
@@ -77,6 +80,8 @@
                         </div>
                         {% elif jr.status == "pending" %}
                         <span class="text-muted">Waiting for slot...</span>
+                        {% elif jr.status == "waiting" %}
+                        <span class="text-muted">지연 대기...</span>
                         {% else %}
                         -
                         {% endif %}

@@ -123,6 +123,8 @@ class SuiteRunStatusEndpointTests(TestCase):
         body = resp.json()
         self.assertEqual(body["phase"], _phase.RUNNING)
         self.assertFalse(body["is_terminal"])
+        # 진행 중에는 result 가 아직 미정(null).
+        self.assertIsNone(body["result"])
         self.assertEqual(resp["X-QGP-Poll-After"], "5")
 
     def test_completed_all_passed_returns_succeeded(self):
@@ -133,6 +135,7 @@ class SuiteRunStatusEndpointTests(TestCase):
         body = resp.json()
         self.assertEqual(body["phase"], _phase.SUCCEEDED)
         self.assertTrue(body["is_terminal"])
+        self.assertEqual(body["result"], "passed")
         self.assertEqual(resp["X-QGP-Poll-After"], "0")
 
     def test_completed_any_failed_returns_failed(self):
@@ -143,3 +146,43 @@ class SuiteRunStatusEndpointTests(TestCase):
         body = resp.json()
         self.assertEqual(body["phase"], _phase.FAILED)
         self.assertTrue(body["is_terminal"])
+        self.assertEqual(body["result"], "failed")
+
+    def test_retrying_run_is_non_terminal_with_null_result(self):
+        """재시도 중인 단독 Run — RUNNING 상태, result null, is_terminal false.
+
+        retry_limit=3 이고 첫 번째 FAILURE 후 PENDING 으로 되돌아간 job_run 이 있는 경우.
+        _poll_run_status 를 mock 해 실제 Jenkins 호출 없이 응답 형태만 검증.
+        """
+        from apps.suites.models import TestSuiteJob, TestSuiteJobRun
+        from unittest.mock import patch
+
+        suite = self.suite
+        job = TestSuiteJob.objects.create(
+            suite=suite, job_name="w1", job_full_path="ATS/sample/w1", order=0)
+
+        # retry_limit=3, 아직 RUNNING 중인 Run (재시도 중)
+        sr = TestSuiteRun.objects.create(
+            suite=suite,
+            triggered_by=self.user,
+            total_jobs=1,
+            retry_limit=3,
+            status=TestSuiteRun.Status.RUNNING,
+        )
+        TestSuiteJobRun.objects.create(
+            suite_run=sr,
+            job=job,
+            status=TestSuiteJobRun.Status.PENDING,
+            attempt=2,  # 재시도 2회차 대기 중
+        )
+
+        with patch("apps.suites.views._poll_run_status"):
+            resp = self.client.get(
+                f"/api/v2/suite-runs/{sr.pk}/status/", **_auth(self.plaintext)
+            )
+
+        body = resp.json()
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(body["phase"], _phase.RUNNING)
+        self.assertFalse(body["is_terminal"])
+        self.assertIsNone(body["result"])

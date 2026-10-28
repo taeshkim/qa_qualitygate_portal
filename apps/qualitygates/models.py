@@ -1,6 +1,7 @@
 import uuid
 from django.conf import settings
 from django.db import models
+from django.utils.functional import cached_property
 
 from apps.integrations.argocd import classify_argocd_status
 
@@ -466,6 +467,18 @@ class QualityGateRun(models.Model):
             return True
         return False
 
+    @cached_property
+    def image_app_tag(self) -> str:
+        """jib 빌드 콘솔에서 추출한 실제 ECR 이미지 태그. 없으면 빈 문자열.
+
+        cached_property — 템플릿이 한 렌더에서 여러 번 접근(if/title/출력)해도
+        콘솔 정규식 스캔을 1회만 수행한다(_run_status 는 5초 폴링).
+        """
+        from apps.integrations.jenkins import extract_pushed_image_tag
+        return extract_pushed_image_tag(
+            self.image_console_output, self.image_build_number
+        ) or ""
+
     @property
     def is_success(self):
         return self.status in (self.Status.COMPLETED, self.Status.QG_PASSED)
@@ -492,7 +505,7 @@ class QualityGateRun(models.Model):
             self.Status.WAITING_DEPLOY: f"Awaiting {deploy_env} Deploy",
             self.Status.DEPLOYING: f"{deploy_env} Deploying",
             self.Status.DEPLOY_FAILED: f"{deploy_env} Deploy Failed",
-            self.Status.QG_PASSED: f"QG Passed (Awaiting {prod_env} Deploy)",
+            self.Status.QG_PASSED: f"QG Passed (Awaiting {prod_env} Approval)",
             self.Status.PROD_DEPLOYING: f"{prod_env} Deploying",
             self.Status.PROD_DEPLOY_FAILED: f"{prod_env} Deploy Failed",
         }
@@ -571,6 +584,14 @@ class QualityGateRunTest(models.Model):
         "suites.TestSuiteJobRun", on_delete=models.SET_NULL,
         null=True, blank=True, related_name="qg_test_runs",
     )
+    # 이 Suite 의 현재 시도 회차 (1-based). retry_limit 까지 재시도되며,
+    # 빌드가 실패해도 attempt < retry_limit 이면 PENDING 으로 되돌려 새 시도를 트리거한다.
+    # 각 시도는 별도의 TestSuiteRun 으로 기록돼 이력이 분리 보존된다.
+    attempt = models.PositiveIntegerField(default=1)
+    # Run 시작 시점의 suite.retry_count 스냅샷 (attempt 상한). 진행 중 suite.retry_count 를
+    # 바꿔도 이 Run 의 재시도 한도엔 영향 없게 한다 — standalone 의 TestSuiteRun.retry_limit 과
+    # 동일한 역할. _poll_one_test_build 의 재시도 판정이 이 값을 읽는다.
+    retry_limit = models.PositiveIntegerField(default=1)
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 

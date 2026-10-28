@@ -1,9 +1,11 @@
 import os
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import IntegrityError
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -14,8 +16,8 @@ from apps.notifications import events as nev
 from apps.notifications.models import SlackNotificationSettings
 from apps.notifications.services import send_test_message
 
-from .forms import SignupForm
-from .models import User
+from .forms import AdminUserCreateForm, SignupForm
+from .models import PortalSettings, User
 
 
 # =============================================
@@ -23,6 +25,9 @@ from .models import User
 # =============================================
 
 def signup(request):
+    # SSO 전환 후(LOCAL_LOGIN_ACTIVE=False)에는 자체 가입 경로를 닫는다 — 계정은 SSO 첫 로그인으로 생성된다.
+    if not settings.LOCAL_LOGIN_ACTIVE:
+        raise Http404
     if request.user.is_authenticated:
         return redirect("dashboard:index")
 
@@ -54,6 +59,40 @@ def user_list(request):
         "pending_users": pending_users,
         "active_users": active_users,
         "role_choices": User.Role.choices,
+        "admin_active_tab": "users",
+    })
+
+
+@login_required
+def user_create(request):
+    """관리자가 사용자 관리 화면에서 직접 계정을 추가한다.
+
+    가입 신청/승인 절차 없이 즉시 활성 계정으로 생성 — 역할도 이 자리에서
+    지정한다. 검증(중복 ID/이메일, 비밀번호 규칙)은 가입 폼과 동일
+    (`AdminUserCreateForm` 이 `SignupForm` 상속). 생성 이력은 ActivityLog 에
+    남긴다(비밀번호는 어디에도 기록하지 않음).
+    """
+    _require_admin(request.user)
+
+    if request.method == "POST":
+        form = AdminUserCreateForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            ActivityLog.log(
+                request.user, ActivityLog.Action.CREATE,
+                ActivityLog.TargetType.USER, target=user,
+                target_name=user.username,
+                detail=f"관리자 직접 추가 / role={user.role} / 즉시 활성",
+            )
+            messages.success(
+                request,
+                f"'{user.username}' 계정을 추가했습니다 (역할: {user.get_role_display()}, 즉시 사용 가능).",
+            )
+            return redirect("accounts:user_list")
+    else:
+        form = AdminUserCreateForm()
+    return render(request, "accounts/user_form.html", {
+        "form": form,
         "admin_active_tab": "users",
     })
 
@@ -156,6 +195,28 @@ def notification_settings_test(request):
 
 
 # =============================================
+# 포털 설정 (메뉴 표시 등)
+# =============================================
+
+@login_required
+def portal_settings(request):
+    """포털 UI 설정 — 좌측 사이드바 메뉴 표시 토글 (admin 전용)."""
+    _require_admin(request.user)
+    settings_obj = PortalSettings.get_solo()
+
+    if request.method == "POST":
+        settings_obj.show_quality_gate = request.POST.get("show_quality_gate") == "on"
+        settings_obj.save(update_fields=["show_quality_gate", "updated_at"])
+        messages.success(request, "포털 설정을 저장했습니다.")
+        return redirect("accounts:portal_settings")
+
+    return render(request, "accounts/portal_settings.html", {
+        "settings_obj": settings_obj,
+        "admin_active_tab": "portal_settings",
+    })
+
+
+# =============================================
 # API Key 관리 (prd_api.md §4.5)
 # =============================================
 #
@@ -184,6 +245,8 @@ def _scope_options_for(user) -> list[tuple[str, str, bool]]:
         (api_scopes.RUNS_READ, api_scopes.SCOPE_LABELS[api_scopes.RUNS_READ], False),
         (api_scopes.RUNS_TRIGGER, api_scopes.SCOPE_LABELS[api_scopes.RUNS_TRIGGER], False),
         (api_scopes.RUNS_CONTROL, api_scopes.SCOPE_LABELS[api_scopes.RUNS_CONTROL], False),
+        (api_scopes.EXPORT_READ, api_scopes.SCOPE_LABELS[api_scopes.EXPORT_READ], True),
+        (api_scopes.OWNERS_MANAGE, api_scopes.SCOPE_LABELS[api_scopes.OWNERS_MANAGE], True),
         (api_scopes.WILDCARD, api_scopes.SCOPE_LABELS[api_scopes.WILDCARD], True),
     ]
     return base

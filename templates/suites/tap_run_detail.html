@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}{{ run.tap_suite.name }} #{{ run.session_id }} - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>UI Test Automation Run: {{ run.tap_suite.name }} <span class="text-muted mono" style="font-size:0.75em">#{{ run.session_id }}</span></h1>
+    <div style="display:flex;gap:8px;align-items:center">
+        <a href="{% url 'suites:suite_list' %}?tab=ui" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+    </div>
+</div>
+
+{% comment %}
+진행 중일 때만 10초마다 자기 자신(GET)을 다시 불러와 이 div 만 교체.
+tap_run_detail 뷰가 부분(fragment) 응답이 아니라 전체 페이지를 렌더하므로
+hx-select 로 같은 id 요소만 추출 — 서버가 재평가한 run.is_active 가 꺼지면
+교체된 새 div 에는 hx-get/hx-trigger 가 더 이상 없어 폴링이 자동 중단된다.
+{% endcomment %}
+<div id="tap-run-content"
+     {% if run.is_active %}
+     hx-get="{% url 'suites:tap_run_detail' run.pk %}"
+     hx-trigger="every 10s"
+     hx-select="#tap-run-content"
+     hx-swap="outerHTML"
+     {% endif %}>
+
+    <div class="metric-cards" style="margin-bottom:20px">
+        <div class="metric-card">
+            <div class="metric-label">Status</div>
+            <div class="metric-value">
+                {% if run.status == "running" %}
+                <span class="text-warning">실행 중</span>
+                {% elif run.status == "queued" or run.status == "pending" %}
+                <span class="text-muted">대기</span>
+                {% elif run.status == "stopped" %}
+                <span class="text-muted" title="중단(Aborted) — 장애로 집계하지 않음">Aborted</span>
+                {% elif run.status == "error" or run.failed > 0 %}
+                <span class="text-danger">Fail</span>
+                {% else %}
+                <span class="text-success">Pass</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Progress</div>
+            <div class="metric-value">{{ run.completed_cases }}/{{ run.total_cases }}</div>
+            <div class="metric-sub">{{ run.progress_percent }}%</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Pass / Fail / Others</div>
+            <div class="metric-value">
+                <span class="text-success">{{ run.passed }}</span> /
+                <span class="text-danger">{{ run.failed }}</span> /
+                <span class="text-muted">{{ run.others }}</span>
+            </div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Started</div>
+            <div class="metric-value" style="font-size:1rem">{{ run.started_at|date:"H:i:s" }}</div>
+            <div class="metric-sub">
+                {% if run.finished_at %}
+                Completed {{ run.finished_at|date:"H:i:s" }}
+                {% else %}
+                진행 중...
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Bar (케이스 수 기준) -->
+    <div class="card" style="margin-bottom:20px">
+        <div style="background:var(--gray-200);border-radius:8px;height:22px;overflow:hidden">
+            <div style="background:{% if run.status == 'running' or run.status == 'queued' or run.status == 'pending' %}var(--info){% elif run.status == 'error' or run.failed > 0 %}var(--danger){% elif run.status == 'completed' %}var(--success){% else %}var(--gray-400){% endif %};width:{{ run.progress_percent }}%;height:100%;min-width:2px"
+                 title="{{ run.completed_cases }}/{{ run.total_cases }} 완료 ({{ run.progress_percent }}%)"></div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+        <h2 class="card-title">실행 정보</h2>
+        <div class="detail-grid">
+            <div class="detail-item">
+                <span class="detail-label">Suite</span>
+                <span class="detail-value">{{ run.tap_suite.name }}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">세션 ID</span>
+                <span class="detail-value mono">#{{ run.session_id }}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">환경</span>
+                <span class="detail-value">{{ run.run_env|default:"-" }}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">제외 케이스</span>
+                <span class="detail-value">
+                    {% with excluded_count=run.excluded_case_ids|length %}
+                    {% if excluded_count %}
+                    {{ excluded_count }}개 <span class="text-muted" style="font-size:0.8rem">(자동화 스크립트 없어 제외)</span>
+                    {% else %}
+                    -
+                    {% endif %}
+                    {% endwith %}
+                </span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">TestRail</span>
+                <span class="detail-value">
+                    {% if run.testrail_run_id %}#{{ run.testrail_run_id }}{% else %}-{% endif %}
+                </span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">TAP</span>
+                <span class="detail-value">
+                    {% if run.tap_url %}
+                    <a href="{{ run.tap_url }}" target="_blank" rel="noopener">
+                        열기 <i class="fas fa-external-link-alt" style="font-size:0.8em"></i>
+                    </a>
+                    {% else %}
+                    -
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">케이스별 결과</h2>
+        <div class="table-wrapper">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Section</th>
+                        <th>Status</th>
+                        <th>Duration</th>
+                        <th>TestRail</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for case in cases %}
+                    <tr>
+                        <td>
+                            <strong>{{ case.title|default:"-" }}</strong>
+                            {% if case.status == "failed" or case.status == "error" %}
+                            {% if case.raw_output_tail %}
+                            <details style="margin-top:6px">
+                                <summary class="text-muted" style="cursor:pointer;font-size:0.8rem">실패 로그 보기</summary>
+                                <pre style="background:#1e1e1e;color:#f08080;padding:12px;border-radius:6px;overflow-x:auto;max-height:300px;overflow-y:auto;font-size:12px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word;margin-top:6px">{{ case.raw_output_tail }}</pre>
+                            </details>
+                            {% endif %}
+                            {% endif %}
+                        </td>
+                        <td class="text-muted" style="font-size:0.85rem">{{ case.section_name|default:"-" }}</td>
+                        <td>
+                            {% if case.status == "passed" %}
+                            <span class="status-badge status-pass">PASS</span>
+                            {% elif case.status == "failed" %}
+                            <span class="status-badge status-fail">FAIL</span>
+                            {% elif case.status == "error" %}
+                            <span class="status-badge status-fail">ERROR</span>
+                            {% elif case.status == "skipped" %}
+                            <span class="status-badge status-na">SKIP</span>
+                            {% elif case.status == "running" %}
+                            <span class="status-badge status-running">Running</span>
+                            {% else %}
+                            <span class="status-badge status-na">{{ case.status|default:"대기" }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{% if case.duration_sec %}{{ case.duration_sec|floatformat:1 }}s{% else %}-{% endif %}</td>
+                        <td>
+                            {% if case.testrail_url %}
+                            <a href="{{ case.testrail_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary" title="TestRail">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">
+                            {% if run.is_active %}
+                            아직 케이스별 결과가 없습니다. 실행이 끝나면 채워집니다.
+                            {% else %}
+                            케이스별 결과가 없습니다.
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

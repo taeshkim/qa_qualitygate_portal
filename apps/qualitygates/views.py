@@ -21,6 +21,7 @@ from apps.notifications import events as nev
 from apps.notifications.services import send_event_async
 from apps.suites.models import TestSuite, TestSuiteRun, TestSuiteJobRun
 from . import services
+from .services import resolve_and_apply_app_image
 from .models import (
     QualityGate, QualityGateFolder, QualityGateSubFolder, QualityGateTestSuite,
     QualityGateRun, QualityGateRunTest,
@@ -38,7 +39,24 @@ def _gate_log_label(gate) -> str:
     parts.append(gate.name)
     return " / ".join(parts)
 
+
 logger = logging.getLogger(__name__)
+
+
+def _override_app_image_default(parameters: list, image_build_number) -> bool:
+    """[레거시/호환] 프로덕션 경로는 services.resolve_and_apply_app_image 를 쓴다.
+
+    이 함수는 콘솔 추출 없이 choices 의 ``{image_build_number}-`` prefix 매칭만 하는
+    단순 버전으로, 단위테스트 호환을 위해 유지한다. prefix 매칭 로직은 중복을 피해
+    services._apply_app_image_default 에 위임한다(단일 진실원).
+
+    반환값 (app_image_matched):
+      - APP_IMAGE 파라미터 자체가 없으면 True  (해당 없음 — 모달 submit 허용)
+      - prefix 매칭 성공이면 True, 그 외(build_number 없음/매칭 없음)는 False
+    """
+    if not any(p.get("name") == "APP_IMAGE" for p in parameters):
+        return True
+    return services._apply_app_image_default(parameters, image_build_number)
 
 
 def _credentials_for_gate_type(gate_type: str) -> tuple[str, str]:
@@ -795,7 +813,12 @@ def run_status_fragment(request, pk):
 
 @login_required
 def deploy_params(request, pk):
-    """검수대상 환경 배포 Job 파라미터 목록 조회 (이미지 빌드 성공 후 모달용)."""
+    """검수대상 환경 배포 Job 파라미터 목록 조회 (이미지 빌드 성공 후 모달용).
+
+    APP_IMAGE(ImageTagParameter) 의 Jenkins default 가 비어 있을 수 있으므로
+    이 Run 의 이미지 빌드 번호로 prefix 매칭해 default 를 오버라이드한다.
+    응답의 app_image_matched 로 모달이 submit 가능 여부를 판단할 수 있다.
+    """
     run = get_object_or_404(QualityGateRun.objects.select_related("gate"), pk=pk)
     gate = run.gate
     client = JenkinsClient(
@@ -803,7 +826,9 @@ def deploy_params(request, pk):
     )
     try:
         info = client.get_job_info(gate.deploy_job_path)
-        return JsonResponse({"ok": True, "parameters": info.get("parameters", [])})
+        parameters = info.get("parameters", [])
+        matched = resolve_and_apply_app_image(parameters, run)
+        return JsonResponse({"ok": True, "parameters": parameters, "app_image_matched": matched})
     except JenkinsError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=502)
 
@@ -820,6 +845,9 @@ def deploy_trigger(request, pk):
         services.trigger_deploy(run=run, user=request.user, parameters=params)
     except services.GateRunError as e:
         if e.code == "invalid_state":
+            return redirect("qualitygates:run_detail", pk=run.pk)
+        if e.code == "invalid_app_image":
+            messages.error(request, str(e))
             return redirect("qualitygates:run_detail", pk=run.pk)
         messages.error(request, str(e))
     return redirect("qualitygates:run_detail", pk=run.pk)
@@ -844,19 +872,8 @@ def prod_deploy_params(request, pk):
     try:
         info = client.get_job_info(gate.prod_job_path)
         parameters = info.get("parameters", [])
-
-        if run.image_build_number:
-            prefix = f"{run.image_build_number}-"
-            for p in parameters:
-                if p.get("name") != "APP_IMAGE":
-                    continue
-                for c in (p.get("choices") or []):
-                    if isinstance(c, str) and c.startswith(prefix):
-                        p["default"] = c
-                        break
-                break
-
-        return JsonResponse({"ok": True, "parameters": parameters})
+        matched = resolve_and_apply_app_image(parameters, run)
+        return JsonResponse({"ok": True, "parameters": parameters, "app_image_matched": matched})
     except JenkinsError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=502)
 
@@ -870,6 +887,9 @@ def prod_deploy(request, pk):
         services.trigger_prod(run=run, user=request.user, parameters=params)
     except services.GateRunError as e:
         if e.code == "invalid_state":
+            return redirect("qualitygates:run_detail", pk=run.pk)
+        if e.code == "invalid_app_image":
+            messages.error(request, str(e))
             return redirect("qualitygates:run_detail", pk=run.pk)
         messages.error(request, str(e))
     return redirect("qualitygates:run_detail", pk=run.pk)
@@ -985,6 +1005,7 @@ def _render_error_log(request, run, stage_label, job_path, build_number, build_u
                      console_output, duration_ms, console_url_name):
     """공용 — 콘솔 로그에서 @@@ 블록만 잘라 에러 로그 페이지를 렌더."""
     from apps.integrations.url_matcher import extract_urls, invalidate_match_cache
+    from apps.integrations.forms import ApiEndpointOwnerForm
     # 담당자(`ApiEndpointOwner`) 가 admin 화면에서 변경되면 LocMem 캐시(signal 로
     # 자동 무효화) 가 stale 인 케이스를 방어 — 페이지 진입 시 명시적 무효화. 비용:
     # cache.delete + index rebuild (~ 300 row, 수십 ms). 같은 페이지 안의 여러
@@ -1013,6 +1034,8 @@ def _render_error_log(request, run, stage_label, job_path, build_number, build_u
         "console_url_name": console_url_name,
         "duration_ms": duration_ms,
         "matched_urls": matched_urls,
+        # "+ 등록" 모달용 폼 (admin 전용). repo/category/area 드롭다운.
+        "owner_form": ApiEndpointOwnerForm() if request.user.is_admin else None,
         "notify_source_type": "qg_run",
         "notify_source_id": str(run.pk),
         "notify_stage": stage,
@@ -1172,9 +1195,10 @@ def _auto_trigger_deploy(run, gate):
     실패한다 (Jenkins 는 buildWithParameters 에 빠진 파라미터를 plugin 의
     런타임 default 로 채워주지 않는다).
 
-    방지책: 방금 빌드한 이미지(`run.image_build_number`) 로 시작하는 choice 를
-    찾아 명시 전송. choices 자체가 비어 있어 매칭이 불가능하면 안전하게
-    WAITING_DEPLOY 로 떨어뜨려 사용자 확인을 받는다.
+    방지책: create-image 콘솔에서 이 Run 이 실제 푸시한 태그를 추출
+    (`resolve_and_apply_app_image`, 폴백: choices `{build}-` prefix 매칭)해 APP_IMAGE
+    를 명시 전송. luxair ImageTagParameter 처럼 choices 가 비어 와도 콘솔 추출로 채운다.
+    추출·매칭 모두 불가능하면 안전하게 WAITING_DEPLOY 로 떨어뜨려 사용자 확인을 받는다.
     """
     client = JenkinsClient(
         gate.deploy_jenkins_url, gate.deploy_jenkins_user, gate.deploy_jenkins_token,
@@ -1183,21 +1207,18 @@ def _auto_trigger_deploy(run, gate):
         info = client.get_job_info(gate.deploy_job_path)
         parameters = info.get("parameters", [])
 
-        # APP_IMAGE 디폴트를 이 Run 의 이미지 빌드 번호로 매칭된 choice 로 오버라이드.
-        # prod_deploy_params 가 모달에 대해 하는 것과 동일.
+        # APP_IMAGE 디폴트를 이 Run 이 실제 푸시한 이미지 태그로 채운다 — 모달 경로
+        # (deploy_params)와 동일한 resolve_and_apply_app_image 사용. luxair
+        # ImageTagParameter 처럼 choices 가 비어 와도 create-image 콘솔에서 추출한
+        # 태그(폴백: choices prefix 매칭)로 자동 진행한다.
         app_image_param = next((p for p in parameters if p.get("name") == "APP_IMAGE"), None)
-        if app_image_param and run.image_build_number:
-            prefix = f"{run.image_build_number}-"
-            for c in (app_image_param.get("choices") or []):
-                if isinstance(c, str) and c.startswith(prefix):
-                    app_image_param["default"] = c
-                    break
+        resolve_and_apply_app_image(parameters, run)
 
         params = _collect_default_params_from_info(parameters, prefer_release_branch=True)
 
-        # APP_IMAGE 가 정의돼 있는데 값을 못 채웠으면 자동 진행 보류 — 사용자가 모달에서
-        # 직접 선택하도록 WAITING_DEPLOY 로. 그대로 트리거하면 Jenkinsfile 이
-        # MissingPropertyException 으로 실패한다.
+        # APP_IMAGE 가 정의돼 있는데 값을 못 채웠으면(콘솔 추출·choices 매칭 모두 실패)
+        # 자동 진행 보류 — 사용자가 모달에서 직접 선택하도록 WAITING_DEPLOY 로. 그대로
+        # 트리거하면 Jenkinsfile 이 MissingPropertyException 으로 실패한다.
         if app_image_param and "APP_IMAGE" not in params:
             logger.warning(
                 f"Auto deploy: APP_IMAGE choice not resolvable (image_build_number={run.image_build_number}); "
@@ -1226,10 +1247,10 @@ def _auto_trigger_prod(run, gate):
 
     APP_IMAGE(ImageTagParameter) 처리는 `_auto_trigger_deploy` 와 동일 — 빈 값을
     그대로 빼고 트리거하면 Jenkinsfile 이 `MissingPropertyException: APP_IMAGE`
-    로 즉시 실패한다. 따라서 방금 빌드한 이미지(`run.image_build_number`) 로
-    시작하는 choice 를 찾아 명시 전송. 매칭이 불가능하면 자동 트리거를 보류하고
-    `QG_PASSED` 로 떨어뜨려 사용자가 모달에서 직접 선택하게 한다. (deploy 의
-    fallback 은 WAITING_DEPLOY, prod 의 fallback 은 QG_PASSED — 단계 차이.)
+    로 즉시 실패한다. 따라서 create-image 콘솔에서 추출한 태그
+    (`resolve_and_apply_app_image`, 폴백: choices prefix 매칭)를 명시 전송한다.
+    추출·매칭 모두 불가능하면 자동 트리거를 보류하고 `QG_PASSED` 로 떨어뜨려 사용자가
+    모달에서 직접 선택하게 한다. (deploy 의 fallback 은 WAITING_DEPLOY, prod 는 QG_PASSED.)
     """
     prod_client = JenkinsClient(
         gate.prod_jenkins_url, gate.prod_jenkins_user, gate.prod_jenkins_token,
@@ -1238,21 +1259,16 @@ def _auto_trigger_prod(run, gate):
         info = prod_client.get_job_info(gate.prod_job_path)
         parameters = info.get("parameters", [])
 
-        # APP_IMAGE 디폴트를 이 Run 의 이미지 빌드 번호로 매칭된 choice 로 오버라이드.
-        # _auto_trigger_deploy 와 동일.
+        # APP_IMAGE 디폴트를 이 Run 이 실제 푸시한 이미지 태그로 채운다 — _auto_trigger_deploy
+        # 와 동일하게 resolve_and_apply_app_image 사용 (콘솔 추출 → choices prefix 폴백).
         app_image_param = next((p for p in parameters if p.get("name") == "APP_IMAGE"), None)
-        if app_image_param and run.image_build_number:
-            prefix = f"{run.image_build_number}-"
-            for c in (app_image_param.get("choices") or []):
-                if isinstance(c, str) and c.startswith(prefix):
-                    app_image_param["default"] = c
-                    break
+        resolve_and_apply_app_image(parameters, run)
 
         params = _collect_default_params_from_info(parameters, prefer_release_branch=True)
 
-        # APP_IMAGE 가 정의돼 있는데 값을 못 채웠으면 자동 진행 보류 — 사용자가 모달에서
-        # 직접 선택하도록 QG_PASSED 로. 그대로 트리거하면 Jenkinsfile 이
-        # MissingPropertyException 으로 실패한다 (Run #14/public-auth 2026-05-11 사고).
+        # APP_IMAGE 가 정의돼 있는데 값을 못 채웠으면(콘솔 추출·choices 매칭 모두 실패)
+        # 자동 진행 보류 — 사용자가 모달에서 직접 선택하도록 QG_PASSED 로. 그대로 트리거하면
+        # Jenkinsfile 이 MissingPropertyException 으로 실패한다 (Run #14/public-auth 2026-05-11 사고).
         if app_image_param and "APP_IMAGE" not in params:
             logger.warning(
                 f"Auto prod deploy: APP_IMAGE choice not resolvable "
@@ -1745,20 +1761,28 @@ def _try_trigger_test(test_run, run):
         try:
             result = test_client.trigger_build(job.job_full_path)
 
-            suite_run = TestSuiteRun.objects.create(
-                suite=suite,
-                status=TestSuiteRun.Status.RUNNING,
-                total_jobs=1,
-                started_at=timezone.now(),
-                triggered_by=run.triggered_by,
-            )
-            job_run = TestSuiteJobRun.objects.create(
-                suite_run=suite_run,
-                job=job,
-                status=TestSuiteJobRun.Status.QUEUED,
-                jenkins_build_number=result.get("build_number"),
-                started_at=timezone.now(),
-            )
+            # Jenkins trigger_build 는 외부 호출이라 아래 DB 트랜잭션과 묶을 수 없다 —
+            # trigger 성공 후 DB 생성이 실패하면 Jenkins 빌드만 도는 "유령 빌드"가
+            # 될 수 있는 구조적 한계가 있다. suite_run/job_run 만이라도 한 트랜잭션으로
+            # 묶어 고아 suite_run(RUNNING 으로 영구 잔류)은 방지한다.
+            with transaction.atomic():
+                suite_run = TestSuiteRun.objects.create(
+                    suite=suite,
+                    status=TestSuiteRun.Status.RUNNING,
+                    total_jobs=1,
+                    # QG 재시도 한도는 test_run.retry_limit 스냅샷이 single source of truth.
+                    retry_limit=max(1, test_run.retry_limit),
+                    started_at=timezone.now(),
+                    triggered_by=run.triggered_by,
+                    seq_no=TestSuiteRun.next_seq_no(suite),
+                )
+                job_run = TestSuiteJobRun.objects.create(
+                    suite_run=suite_run,
+                    job=job,
+                    status=TestSuiteJobRun.Status.QUEUED,
+                    jenkins_build_number=result.get("build_number"),
+                    started_at=timezone.now(),
+                )
 
             test_run.job_run = job_run
             test_run.status = QualityGateRunTest.Status.TESTING
@@ -1924,18 +1948,14 @@ def _poll_one_test_build(test_run):
     except JenkinsError:
         logger.warning(f"Failed to fetch test console for job_run {job_run.pk}")
 
-    if result == "SUCCESS":
-        job_run.status = TestSuiteJobRun.Status.SUCCESS
-        test_run.status = QualityGateRunTest.Status.PASSED
-    else:
-        job_run.status = TestSuiteJobRun.Status.FAILURE
-        test_run.status = QualityGateRunTest.Status.FAILED
-
+    # 이번 시도의 job_run / suite_run 은 결과대로 마감해 이력을 보존한다.
+    # (재시도 시에도 실패한 시도가 별도 TestSuiteRun 으로 남는다.)
+    job_run.status = (
+        TestSuiteJobRun.Status.SUCCESS if result == "SUCCESS"
+        else TestSuiteJobRun.Status.FAILURE
+    )
     job_run.save()
-    test_run.completed_at = timezone.now()
-    test_run.save(update_fields=["status", "completed_at"])
 
-    # SuiteRun 업데이트
     suite_run = job_run.suite_run
     suite_run.passed_jobs = 1 if result == "SUCCESS" else 0
     suite_run.failed_jobs = 0 if result == "SUCCESS" else 1
@@ -1952,16 +1972,48 @@ def _poll_one_test_build(test_run):
         suite_name = test_run.gate_suite.test_suite.name
     except Exception:  # noqa: BLE001
         suite_name = "Test Suite"
-    if test_run.status == QualityGateRunTest.Status.PASSED:
+
+    if result == "SUCCESS":
+        test_run.status = QualityGateRunTest.Status.PASSED
+        test_run.completed_at = timezone.now()
+        test_run.save(update_fields=["status", "completed_at"])
         send_event_async(
             nev.TEST_SUITE_PASSED, test_run.gate_run, suite_name=suite_name,
         )
-    else:
-        send_event_async(
-            nev.TEST_SUITE_FAILED, test_run.gate_run, suite_name=suite_name,
-            job_run_id=str(job_run.pk),
-        )
+        return True
 
+    # 실패 — 재시도 횟수가 남아 있으면 이 Suite 를 PENDING 으로 되돌려 새 시도를
+    # 트리거하게 한다 (실패로 확정하지 않고, Slack 실패 알림도 보내지 않는다).
+    # retry_limit 은 Run 시작 시점 스냅샷(test_run.retry_limit) — 진행 중 suite 설정을
+    # 바꿔도 이 Run 의 한도는 고정. (standalone 의 suite_run.retry_limit 과 동일 규약)
+    retry_limit = max(1, test_run.retry_limit)
+    if test_run.attempt < retry_limit:
+        ActivityLog.log(
+            user=test_run.gate_run.triggered_by,
+            action=ActivityLog.Action.RETRY,
+            target_type=ActivityLog.TargetType.GATE_RUN,
+            target=test_run.gate_run,
+            target_name=_gate_log_label(test_run.gate_run.gate),
+            detail=f"auto retry {test_run.attempt + 1}/{retry_limit} for suite '{suite_name}' (build FAILURE)",
+        )
+        test_run.attempt += 1
+        test_run.status = QualityGateRunTest.Status.PENDING
+        test_run.job_run = None
+        test_run.started_at = None
+        test_run.completed_at = None
+        test_run.save(update_fields=[
+            "attempt", "status", "job_run", "started_at", "completed_at",
+        ])
+        return False  # 비종료 — 다음 시도 대기
+
+    # 재시도 소진 → 최종 실패
+    test_run.status = QualityGateRunTest.Status.FAILED
+    test_run.completed_at = timezone.now()
+    test_run.save(update_fields=["status", "completed_at"])
+    send_event_async(
+        nev.TEST_SUITE_FAILED, test_run.gate_run, suite_name=suite_name,
+        job_run_id=str(job_run.pk),
+    )
     return True
 
 
@@ -1990,6 +2042,12 @@ def _poll_test_sequential(run):
     current_test = test_runs[run.current_suite_index]
 
     if not _poll_one_test_build(current_test):
+        # 재시도로 PENDING 으로 되돌아왔으면(빌드 실패 + 시도 잔여) 즉시 새 시도를 트리거.
+        # 그 외(아직 building 중 등)는 다음 폴링까지 대기.
+        if current_test.status == QualityGateRunTest.Status.PENDING:
+            run.status = QualityGateRun.Status.WAITING_TEST
+            run.save(update_fields=["status"])
+            _advance_test(run, run.gate)
         return
 
     # 실패 시 즉시 중단 (순차 모드)

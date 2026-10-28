@@ -13,6 +13,51 @@
 (function (global) {
     'use strict';
 
+    const notifyScript = document.currentScript;
+    const serviceWorkerUrl = notifyScript && notifyScript.dataset.serviceWorkerUrl;
+    const serviceWorkerScope = notifyScript && notifyScript.dataset.serviceWorkerScope;
+
+    /* ------------------------------------------------------------------
+     * 세션 만료(401) 처리 — 게이트웨이는 세션이 끝나면 fetch/HTMX/POST 에 빈 401 을 돌려준다.
+     * 같은 출처 요청이 401 이면 페이지를 새로고침해 게이트웨이 로그인을 다시 거치게 한다.
+     * 무한 새로고침 방지: 마지막 새로고침 시각을 sessionStorage 에 저장해 10초 안에는 재시도하지 않는다.
+     * (fetch 래퍼 + htmx 이벤트 모두 이 함수 한 곳으로 모은다.)
+     * ------------------------------------------------------------------ */
+    function reloadOnSessionExpired() {
+        const KEY = 'qg-401-reload-at';
+        const now = Date.now();
+        try {
+            const last = parseInt(sessionStorage.getItem(KEY) || '0', 10);
+            if (last && now - last < 10000) return;
+            sessionStorage.setItem(KEY, String(now));
+        } catch (e) { /* 저장소 사용 불가 — 그래도 한 번은 새로고침 */ }
+        window.location.reload();
+    }
+
+    function isSameOrigin(input) {
+        try {
+            const raw = (typeof input === 'string') ? input : (input && input.url) || String(input);
+            return new URL(raw, window.location.href).origin === window.location.origin;
+        } catch (e) { return false; }
+    }
+
+    if (typeof window.fetch === 'function' && !window.fetch.__qgWrapped) {
+        const origFetch = window.fetch.bind(window);
+        const wrapped = function (input, init) {
+            return origFetch(input, init).then(function (resp) {
+                if (resp && resp.status === 401 && isSameOrigin(input)) reloadOnSessionExpired();
+                return resp;
+            });
+        };
+        wrapped.__qgWrapped = true;
+        window.fetch = wrapped;
+    }
+
+    document.addEventListener('htmx:responseError', function (evt) {
+        const xhr = evt && evt.detail && evt.detail.xhr;
+        if (xhr && xhr.status === 401) reloadOnSessionExpired();
+    });
+
     function escapeHtml(s) {
         return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
@@ -156,7 +201,7 @@
         const label = document.getElementById('notify-toggle-label');
         if (!btn || !label) return;
         if (!('Notification' in window)) {
-            label.textContent = '알림 미지원';
+            label.textContent = 'Notify N/A';
             btn.disabled = true;
             return;
         }
@@ -164,17 +209,17 @@
         const icon = btn.querySelector('i');
         btn.classList.remove('btn-primary', 'btn-secondary');
         if (p === 'granted' && !isMuted()) {
-            label.textContent = '알림 ON';
+            label.textContent = 'Notify ON';
             if (icon) { icon.className = 'fas fa-bell'; }
             btn.classList.add('btn-primary');
             btn.title = '클릭하면 OS 알림을 끕니다. (페이지 내 토스트는 계속 표시)';
         } else if (p === 'denied') {
-            label.textContent = '알림 차단됨';
+            label.textContent = 'Notify Blocked';
             if (icon) { icon.className = 'fas fa-bell-slash'; }
             btn.classList.add('btn-secondary');
             btn.title = '브라우저 설정에서 이 사이트의 알림을 허용으로 바꿔야 합니다 (주소창 왼쪽 자물쇠 아이콘 → 사이트 설정 → 알림).';
         } else {
-            label.textContent = '알림 OFF';
+            label.textContent = 'Notify OFF';
             if (icon) { icon.className = 'fas fa-bell-slash'; }
             btn.classList.add('btn-secondary');
             btn.title = (p === 'granted')
@@ -262,8 +307,9 @@
     let swRegPromise = null;
     function registerSW() {
         if (!('serviceWorker' in navigator)) return Promise.resolve(null);
+        if (!serviceWorkerUrl || !serviceWorkerScope) return Promise.resolve(null);
         if (swRegPromise) return swRegPromise;
-        swRegPromise = navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        swRegPromise = navigator.serviceWorker.register(serviceWorkerUrl, { scope: serviceWorkerScope })
             .then((reg) => { console.log('[QGNotify] SW 등록 성공:', reg.scope); return reg; })
             .catch((e) => { console.error('[QGNotify] SW 등록 실패:', e); return null; });
         return swRegPromise;
@@ -370,7 +416,7 @@
             log('  SW 미지원 — 스킵');
         } else {
             try {
-                const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+                const reg = await navigator.serviceWorker.register(serviceWorkerUrl, { scope: serviceWorkerScope });
                 log('  SW 등록 ✓ (scope: ' + reg.scope + ')');
                 // activate 대기
                 if (!reg.active) {

@@ -60,7 +60,7 @@
             <label>이름 검색</label>
             <input type="text" name="q" value="{{ q }}" class="form-input" placeholder="대상 이름으로 검색">
         </div>
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
             <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> 조회</button>
             <a href="{% url 'activitylog:list' %}" class="btn btn-secondary">초기화</a>
         </div>
@@ -110,7 +110,7 @@
     </div>
 
     {% if page.has_other_pages %}
-    <div style="display:flex;justify-content:center;gap:6px;margin-top:16px">
+    <div style="display:flex;justify-content:center;gap:6px;margin-top:16px;flex-wrap:wrap">
         {% if page.has_previous %}
         <a class="btn btn-secondary btn-sm" href="?{% if selected_type %}type={{ selected_type }}&{% endif %}{% if selected_action %}action={{ selected_action }}&{% endif %}{% if q %}q={{ q }}&{% endif %}page={{ page.previous_page_number }}">
             <i class="fas fa-chevron-left"></i>

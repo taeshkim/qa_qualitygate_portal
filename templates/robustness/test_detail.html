@@ -5,7 +5,7 @@
 {% block content %}
 <div class="page-header">
     <h1>{{ test.name }}</h1>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
         {% if user.is_admin %}
         <a href="{% url 'robustness:test_edit' test.pk %}" class="btn btn-secondary">
             <i class="fas fa-edit"></i> Edit
@@ -41,18 +41,41 @@
 
 {% if user.is_admin %}
 <!-- Add Schedule -->
-<div class="card">
+<div class="card" id="schedule-add-card">
     <h2 class="card-title">Test Suite 연동 추가</h2>
+
+    <nav class="event-tabs" role="tablist">
+        <button type="button" class="event-tab-btn active" data-event-tab="tab-api" role="tab">
+            <i class="fas fa-server"></i> API Test Automation
+        </button>
+        <button type="button" class="event-tab-btn" data-event-tab="tab-ui" role="tab">
+            <i class="fas fa-desktop"></i> UI Automation
+        </button>
+    </nav>
+
     <form method="post" action="{% url 'robustness:schedule_add' test.pk %}" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
         {% csrf_token %}
-        <div class="form-group" style="flex:1;min-width:240px;margin:0">
-            <label for="test_suite_id">Test Suite</label>
-            <select name="test_suite_id" id="test_suite_id" class="form-input" required>
-                <option value="">-- 선택 --</option>
-                {% for suite in available_suites %}
-                <option value="{{ suite.pk }}">{{ suite.name }}</option>
-                {% endfor %}
-            </select>
+        <div class="event-tab-panel active" data-event-panel="tab-api" style="flex:1;min-width:240px">
+            <div class="form-group" style="margin:0">
+                <label for="test_suite_id">Test Suite</label>
+                <select name="test_suite_id" id="test_suite_id" class="form-input" required>
+                    <option value="">-- 선택 --</option>
+                    {% for suite in available_suites %}
+                    <option value="{{ suite.pk }}">{{ suite.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="event-tab-panel" data-event-panel="tab-ui" style="flex:1;min-width:240px">
+            <div class="form-group" style="margin:0">
+                <label for="tap_suite_id">UI Automation Suite</label>
+                <select name="tap_suite_id" id="tap_suite_id" class="form-input">
+                    <option value="">-- 선택 --</option>
+                    {% for suite in available_tap_suites %}
+                    <option value="{{ suite.pk }}">{{ suite.name }} ({{ suite.case_count }} 케이스)</option>
+                    {% endfor %}
+                </select>
+            </div>
         </div>
         <div class="form-group" style="margin:0;width:160px">
             <label for="interval_minutes">실행 간격 (분)</label>
@@ -63,28 +86,61 @@
             <i class="fas fa-plus"></i> 추가
         </button>
     </form>
-    {% if available_suites %}
-    <form method="post" action="{% url 'robustness:schedule_add_all' test.pk %}" style="margin-top:12px;display:flex;gap:8px;align-items:center">
-        {% csrf_token %}
-        <input type="hidden" name="interval_minutes" value="60">
-        <button type="submit" class="btn btn-secondary"
-                onclick="return confirm('미연동 Test Suite {{ available_suites|length }}개를 모두 추가합니다. 계속할까요?')">
-            <i class="fas fa-layer-group"></i> 전체 일괄 추가 ({{ available_suites|length }}개)
-        </button>
-        <span class="text-muted" style="font-size:0.82rem">기본 간격 60분</span>
-    </form>
-    {% else %}
-    <p class="text-muted" style="margin-top:8px;font-size:0.85rem">
-        모든 활성 Test Suite 가 이미 연동되어 있습니다.
-    </p>
-    {% endif %}
+
+    <div class="event-tab-panel active" data-event-panel="tab-api">
+        {% if available_suites %}
+        <form method="post" action="{% url 'robustness:schedule_add_all' test.pk %}" style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            {% csrf_token %}
+            <input type="hidden" name="interval_minutes" value="60">
+            <button type="submit" class="btn btn-secondary"
+                    onclick="return confirm('미연동 Test Suite {{ available_suites|length }}개를 모두 추가합니다. 계속할까요?')">
+                <i class="fas fa-layer-group"></i> 전체 일괄 추가 ({{ available_suites|length }}개)
+            </button>
+            <span class="text-muted" style="font-size:0.82rem">기본 간격 60분</span>
+        </form>
+        {% else %}
+        <p class="text-muted" style="margin-top:8px;font-size:0.85rem">
+            모든 활성 Test Suite 가 이미 연동되어 있습니다.
+        </p>
+        {% endif %}
+    </div>
+
+    <div class="event-tab-panel" data-event-panel="tab-ui">
+        {% if not available_tap_suites %}
+        <p class="text-muted" style="margin-top:8px;font-size:0.85rem">
+            모든 UI Automation Suite 가 이미 연동되어 있습니다.
+        </p>
+        {% endif %}
+    </div>
 </div>
+
+<script>
+(function () {
+    var scope = document.getElementById('schedule-add-card');
+    if (!scope) return;
+    var buttons = scope.querySelectorAll('.event-tab-btn');
+    var panels = scope.querySelectorAll('.event-tab-panel');
+    var testSel = document.getElementById('test_suite_id');
+    var tapSel = document.getElementById('tap_suite_id');
+    buttons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var target = btn.getAttribute('data-event-tab');
+            buttons.forEach(function (b) { b.classList.toggle('active', b === btn); });
+            panels.forEach(function (p) {
+                p.classList.toggle('active', p.getAttribute('data-event-panel') === target);
+            });
+            if (testSel) { testSel.required = (target === 'tab-api'); }
+            if (tapSel) { tapSel.required = (target === 'tab-ui'); }
+        });
+    });
+})();
+</script>
 {% endif %}
 
 <!-- Schedules -->
 <div class="card"
      hx-get="{% url 'robustness:test_detail_fragment' test.pk %}"
-     hx-trigger="every 10s"
+     hx-trigger="load, every 10s"
      hx-swap="innerHTML">
     {% include "robustness/_schedule_table.html" %}
 </div>

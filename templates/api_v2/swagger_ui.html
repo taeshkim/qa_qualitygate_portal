@@ -1,0 +1,175 @@
+{% extends "drf_spectacular/swagger_ui.html" %}
+{# Swagger UI 확장 — Authorize 로 입력한 API Key 를 서버에 실제 검증한다.
+
+   기본 Swagger UI 의 Authorize 는 입력값을 브라우저에 저장만 할 뿐 서버 검증이
+   없어 아무 문자열이나 넣어도 "저장됨" 처럼 보인다. 이 확장은 키 입력/변경을
+   감지해 GET /ci-api/me/ (게이트웨이 로그인 예외 경로) 를 그 키로 호출(쿠키 제외 — 세션이 아닌 키 자체를
+   검증)하고, 유효/무효 결과를 우상단 배지로 즉시 보여준다. API 동작 불변 —
+   문서 페이지 전용 스크립트. #}
+{% block head %}
+{{ block.super }}
+<style>
+/* ── QGP 문서 스킨 — 기본 Swagger 의 밋밋한 상단 소개를 카드형으로 정리 ── */
+.swagger-ui .info { margin: 30px 0 22px; }
+.swagger-ui .info hgroup.main { margin-bottom: 14px; }
+.swagger-ui .info .title { font-size: 30px; letter-spacing: -0.01em; }
+.swagger-ui .info .title small.version-stamp { background: #6366f1; }
+/* 소개 본문을 카드로 */
+.swagger-ui .info .description {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 26px 30px 22px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+.swagger-ui .info .description p,
+.swagger-ui .info .description li,
+.swagger-ui .info .description td {
+  font-size: 14px; line-height: 1.75; color: #334155;
+}
+.swagger-ui .info .description h3 {
+  margin: 26px 0 12px; padding-bottom: 8px;
+  font-size: 17px; color: #0f172a;
+  border-bottom: 1px solid #eef2f7;
+}
+.swagger-ui .info .description h3:first-of-type { margin-top: 10px; }
+/* 표 — 빠른 시작/용어 사전/오류 코드 */
+.swagger-ui .info .description table {
+  width: 100%; border-collapse: collapse; margin: 8px 0 4px;
+}
+.swagger-ui .info .description table th {
+  background: #f8fafc; color: #475569; text-align: left;
+  font-size: 12.5px; text-transform: none;
+}
+.swagger-ui .info .description table th,
+.swagger-ui .info .description table td {
+  border: 1px solid #e8edf3; padding: 9px 14px; vertical-align: top;
+}
+.swagger-ui .info .description table tr:nth-child(even) td { background: #fafbfd; }
+/* 인라인 코드 칩 */
+.swagger-ui .info .description code {
+  background: #eef2ff; color: #4338ca;
+  padding: 2px 7px; border-radius: 6px; font-size: 12.5px;
+}
+/* 안내 blockquote */
+.swagger-ui .info .description blockquote {
+  margin: 14px 0; padding: 11px 16px;
+  border-left: 4px solid #6366f1; background: #f5f7ff;
+  border-radius: 0 10px 10px 0;
+}
+.swagger-ui .info .description blockquote p { margin: 0; }
+/* 링크 */
+.swagger-ui .info .description a { color: #4f46e5; font-weight: 600; }
+/* 스키마 원본 링크(회색 잔글씨 줄)는 소개 카드와 분리해 여백 */
+.swagger-ui .info > div:not(.description) { margin-top: 6px; }
+/* 태그(섹션) 헤더 간격/타이포 정리 */
+.swagger-ui .opblock-tag {
+  font-size: 20px; padding: 14px 10px;
+  border-bottom: 1px solid #e8edf3;
+}
+.swagger-ui .opblock-tag small { font-size: 13px; color: #64748b; line-height: 1.6; }
+/* Authorize 버튼 강조 */
+.swagger-ui .auth-wrapper .authorize { border-color: #6366f1; color: #4f46e5; }
+</style>
+{% endblock %}
+
+{% block body %}
+{{ block.super }}
+<script>
+(function () {
+  "use strict";
+  var lastToken = null;
+  var badge = null;
+  // 무효 키 자동 해제 후에도 오류 배지를 유지하기 위한 플래그 —
+  // logout 으로 토큰이 null 이 되면 폴링 루프가 배지를 지우려 하기 때문.
+  var keepErrorBadge = false;
+
+  function ensureBadge() {
+    if (badge) return badge;
+    badge = document.createElement("div");
+    badge.id = "qgp-key-check-badge";
+    badge.style.cssText = [
+      "position:fixed", "top:14px", "right:16px", "z-index:9999",
+      "max-width:46vw", "padding:10px 14px", "border-radius:8px",
+      "font:600 13px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+      "box-shadow:0 4px 14px rgba(0,0,0,0.18)", "cursor:pointer",
+      "white-space:normal", "word-break:break-word",
+    ].join(";");
+    badge.title = "클릭하면 닫힙니다";
+    badge.addEventListener("click", function () { badge.style.display = "none"; });
+    document.body.appendChild(badge);
+    return badge;
+  }
+
+  function show(msg, ok) {
+    var el = ensureBadge();
+    el.textContent = msg;
+    el.style.display = "block";
+    el.style.background = ok ? "#ecfdf5" : "#fef2f2";
+    el.style.color = ok ? "#047857" : "#b91c1c";
+    el.style.border = "1px solid " + (ok ? "#a7f3d0" : "#fecaca");
+  }
+
+  function hide() { if (badge) badge.style.display = "none"; }
+
+  function currentToken() {
+    try {
+      var auth = ui.authSelectors.authorized().toJS();
+      var entry = auth && auth.ApiKeyAuth;
+      return entry && entry.value ? String(entry.value) : null;
+    } catch (e) { return null; }
+  }
+
+  function validate(token) {
+    show("⏳ 키 검증 중입니다...", true);
+    /* /api/v2/ 는 쿠키 없이는 게이트웨이가 막으므로, 키만으로 통과하는 /ci-api/ 로 검증한다. */
+    fetch("{% url 'api_v2:me' %}".replace("/api/v2/", "/ci-api/"), {
+      headers: { "Authorization": "Bearer " + token },
+      credentials: "omit",  /* 세션 쿠키 제외 — 키 자체만 검증 */
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (res.ok) {
+          keepErrorBadge = false;
+          var k = data.api_key;
+          if (k) {
+            show("✅ 유효한 API Key 입니다 — " + (k.name || k.key_prefix) +
+                 " (scope: " + ((k.scopes || []).join(", ") || "없음") + ")", true);
+          } else {
+            show("✅ 인증은 성공했지만 API Key 정보가 없습니다.", true);
+          }
+        } else {
+          var code = data.detail || data.code || "";
+          // 무효 키는 저장 상태로 두지 않는다 — 자동 해제(logout)해서
+          // Authorize 버튼이 다시 '입력' 상태가 되게 하고, 재시도를 안내.
+          keepErrorBadge = true;
+          try { ui.authActions.logout(["ApiKeyAuth"]); } catch (e) { /* no-op */ }
+          show("❌ 유효하지 않은 키라서 저장하지 않았습니다 (HTTP " + res.status +
+               (code ? " · " + code : "") +
+               "). Authorize 버튼을 다시 눌러 올바른 qgp_ 키를 입력해 주세요.", false);
+        }
+      });
+    }).catch(function () {
+      show("⚠️ 키 검증 요청에 실패했습니다. 네트워크 상태를 확인해 주세요.", false);
+    });
+  }
+
+  /* Swagger UI 는 Authorize 훅을 외부에 안 열어주므로 auth 상태를 폴링해
+     키 입력/변경/로그아웃을 감지한다 (0.7초 간격, 문서 페이지 한정). */
+  setInterval(function () {
+    if (typeof ui === "undefined") return;
+    var t = currentToken();
+    if (t !== lastToken) {
+      lastToken = t;
+      if (t) {
+        keepErrorBadge = false;
+        validate(t);
+      } else if (!keepErrorBadge) {
+        // 사용자가 직접 Logout 한 경우만 배지 제거 — 무효 키 자동 해제
+        // 직후에는 오류 배지를 남겨 재시도를 안내한다.
+        hide();
+      }
+    }
+  }, 700);
+})();
+</script>
+{% endblock %}

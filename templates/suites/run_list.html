@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Suite Runs - Quality Gate Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Suite Runs</h1>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <a href="{% url 'suites:suite_list' %}" class="btn btn-secondary">
+            <i class="fas fa-flask"></i> Suite 목록
+        </a>
+        <a href="{% url 'suites:queue' %}" class="btn btn-secondary">
+            <i class="fas fa-clock"></i> Queue
+        </a>
+    </div>
+</div>
+
+<p class="text-muted" style="margin:-8px 0 16px">
+    <strong>Test Suite Run 전체 이력</strong>입니다. 대시보드는 최근 15건 요약만 보여주며,
+    이 화면에서 Suite · 상태 · 결과 · 트리거 필터로 전체 이력을 조회할 수 있습니다.
+</p>
+
+<form method="get" class="card" style="padding:12px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px">
+    <div>
+        <label class="text-muted" style="font-size:.8rem;display:block;margin-bottom:2px">Suite</label>
+        <select name="suite" class="form-input">
+            <option value="">전체</option>
+            {% for s in suites %}
+            <option value="{{ s.pk }}" {% if f_suite == s.pk|stringformat:'s' %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="text-muted" style="font-size:.8rem;display:block;margin-bottom:2px">상태</label>
+        <select name="status" class="form-input">
+            <option value="">전체</option>
+            {% for val, label in status_choices %}
+            <option value="{{ val }}" {% if f_status == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="text-muted" style="font-size:.8rem;display:block;margin-bottom:2px">트리거</label>
+        <select name="source" class="form-input">
+            <option value="">전체</option>
+            <option value="manual" {% if f_source == 'manual' %}selected{% endif %}>단독 (API/UI)</option>
+            <option value="scheduled" {% if f_source == 'scheduled' %}selected{% endif %}>스케줄/자동</option>
+        </select>
+    </div>
+    <div>
+        <label class="text-muted" style="font-size:.8rem;display:block;margin-bottom:2px">결과</label>
+        <select name="result" class="form-input">
+            <option value="">전체</option>
+            <option value="pass" {% if f_result == 'pass' %}selected{% endif %}>PASS</option>
+            <option value="fail" {% if f_result == 'fail' %}selected{% endif %}>FAIL</option>
+            <option value="skip" {% if f_result == 'skip' %}selected{% endif %}>SKIP (Triage)</option>
+        </select>
+    </div>
+    <div>
+        <label class="text-muted" style="font-size:.8rem;display:block;margin-bottom:2px">날짜(시작일)</label>
+        <input type="date" name="date" value="{{ f_date }}" class="form-input">
+    </div>
+    <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> 필터</button>
+    {% if f_date %}<a href="{% url 'suites:run_list' %}" class="btn btn-secondary" title="날짜 등 필터 초기화">초기화</a>{% endif %}
+</form>
+
+<div class="card">
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Suite</th>
+                    <th>상태</th>
+                    <th>결과</th>
+                    <th>Pass / Fail / Total</th>
+                    <th>트리거</th>
+                    <th>시작</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in runs %}
+                <tr>
+                    <td>
+                        {% if run.seq_no %}
+                        {# 여러 suite 혼합 목록이라 seq_no(suite별 1..N)가 중복돼 보임 → suite 구분자를 앞에 붙여 구별 #}
+                        <span class="text-muted mono" style="font-size:0.82em"><span style="color:var(--gray-600)">{{ run.suite.short_label }}</span> · #{{ run.seq_no }}</span>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ run.suite.name }}</td>
+                    <td>
+                        {% if run.status == 'running' %}
+                        <span class="status-badge status-running">Running</span>
+                        {% else %}
+                        <span class="status-badge status-na">{{ run.get_status_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if run.status == 'completed' %}
+                            {% if run.triage_result == 'fail' %}
+                            <span class="status-badge status-fail">FAIL</span>
+                            {% elif run.triage_result == 'skip' %}
+                            <span class="status-badge status-na" title="Slack Triage — 자동화 판정 오류 의심 및 자동화 코드 이슈 추정으로 Skip 분류">SKIP</span>
+                            {% elif run.triage_result == 'aborted' %}
+                            <span class="status-badge status-na" title="실패 Job 이 전부 중단(ABORTED) — 스케줄 정지/취소 등. 장애로 집계하지 않음">ABORTED</span>
+                            {% else %}
+                            <span class="status-badge status-pass">PASS</span>
+                            {% endif %}
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="mono">{{ run.passed_jobs }} / {{ run.failed_jobs }} / {{ run.total_jobs }}</td>
+                    <td>
+                        {% if run.triggered_by %}
+                        {{ run.triggered_by.username }}
+                        {% else %}
+                        <span class="text-muted" title="Reliability 스케줄 등 자동 트리거 (트리거 주체 없음)">스케줄/자동</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ run.started_at|date:"m-d H:i" }}</td>
+                    <td><a href="{% url 'suites:run_detail' run.pk %}" class="btn btn-sm btn-secondary">Detail</a></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" class="text-muted" style="text-align:center;padding:24px">표시할 Run 이 없습니다.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
